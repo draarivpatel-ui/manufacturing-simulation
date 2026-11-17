@@ -1,5 +1,10 @@
 import { getBenchOf, getOccupants, hasFreeSlot } from "lib/job/container-slots"
 import type { JobRow, UnitStagePlan } from "lib/job/job-plan"
+import {
+  ensureBoxesAtPackOut,
+  hasLaserWork,
+  runLaserJob,
+} from "lib/job/laser-steps"
 import { runPendingSideJob } from "lib/job/side-jobs"
 import {
   BATCH_SIZE,
@@ -426,6 +431,12 @@ export function* runBench(
 /** Run the line bench by bench until the carton ships; stops if the user takes control or a bench is blocked. */
 export function* runFullBatch(ctx: SimContext): SimTask {
   for (const tableId of ctx.jobPlan.lineTables) {
+    if (ctx.world.uvLaser && ctx.mode === "simulation") {
+      // Pack-out needs every box engraved; earlier, keep the laser busy between benches.
+      if (tableId === "pack_out_bench") yield* ensureBoxesAtPackOut(ctx)
+      else if (tableId !== ctx.jobPlan.lineTables[0] && hasLaserWork(ctx))
+        yield* runLaserJob({}, ctx)
+    }
     yield* runBench({ tableId }, ctx)
     if (ctx.mode !== "simulation") return
     const pending = getNextUnitWork({ tableId }, ctx)

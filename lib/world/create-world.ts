@@ -71,13 +71,25 @@ import {
   SPACER_TUB,
 } from "lib/models/spacer-basket"
 import { createStandingDesk } from "lib/models/standing-desk"
+import { createSticker } from "lib/models/sticker"
+import {
+  createThermalPrinter,
+  type ThermalPrinter,
+  UPC_STICKER,
+} from "lib/models/thermal-printer"
 import {
   createGanChargingStation,
   createUsbCharger,
   USB_CHARGER,
 } from "lib/models/usb-charger"
 import {
+  createUvLaser,
+  LASER_BOXES_PER_RUN,
+  type UvLaser,
+} from "lib/models/uv-laser"
+import {
   createWhiteMailerBox,
+  setBoxEngraved,
   WHITE_MAILER_BOX,
   type WhiteMailerBox,
 } from "lib/models/white-mailer-box"
@@ -94,6 +106,7 @@ import {
   BAG_LYING_QUATERNION,
   BAGGING_BENCH_SPOTS,
   LABEL_BENCH_SPOTS,
+  LASER_BENCH_SPOTS,
   MOTOR_ON_SIDE_QUATERNION,
   PACK_OUT_BENCH_SPOTS,
   PLUG_LYING_QUATERNION,
@@ -149,6 +162,8 @@ export interface AssemblyUnit {
   charger: Group
   /** Peeled from the top label sheet at pack-out. */
   label: Group | null
+  /** Full kit: the 2" x 1" thermal UPC sticker on the bottom corner of the box. */
+  upcLabel: Group | null
   /** Bare-unit line: the ESD bag it ships in, and the FNSKU label on the bag. */
   bag: EsdBag | null
   fnskuLabel: Group | null
@@ -165,6 +180,26 @@ export interface LabelPrinterState {
   /** Printed sheets waiting in the output tray, bottom first. */
   printedSheets: LabelSheet[]
   secondsSinceLastSheet: number
+}
+
+/** The UV laser that engraves "Made in China" on the kit boxes, a run of up to six at a time. */
+export interface UvLaserState {
+  laser: UvLaser
+  /** Boxes on the slide, in slot order: engraving, or engraved and waiting to be unloaded. */
+  loadedBoxes: WhiteMailerBox[]
+  isEngraving: boolean
+  engravedSeconds: number
+  /** Length of the current run: framing plus a few seconds per box. */
+  runSeconds: number
+  /** Kit boxes still blank on the laser bench, top of the first stack first. */
+  blankBoxes: WhiteMailerBox[]
+}
+
+/** The thermal printer at pack-out and its roll of 2" x 1" UPC stickers. */
+export interface ThermalPrinterState {
+  printer: ThermalPrinter
+  /** Stickers still on the roll; the next one printed is the last. */
+  roll: Group[]
 }
 
 /** Everything movable on the floor. */
@@ -216,6 +251,9 @@ export interface ManufacturingWorld {
   carriedTub: Group | null
   tubSpacers: Group[]
   labelPrinter: LabelPrinterState
+  /** Full kit only: the box laser and the UPC sticker printer. */
+  uvLaser: UvLaserState | null
+  thermalPrinter: ThermalPrinterState | null
   /** True once the sealed carton is out by the door. */
   isCartonShipped: boolean
   /** Every cable whose wire must be redrawn as its ends move. */
@@ -230,6 +268,12 @@ const STARTING_SPACER_COUNT = 34
 const SPARE_LONG_SCREW_COUNT = 18
 const SPARE_MOTOR_CABLE_COUNT = 6
 const BOXES_PER_STACK = 6
+/** Kit boxes already engraved and stacked at pack-out when the shift starts. */
+const BOXES_ENGRAVED_AT_START = 12
+/** Blank boxes beyond the batch, kept at the laser bench. */
+const SPARE_BLANK_BOXES = 5
+/** Extra UPC stickers on the thermal roll beyond one batch. */
+const SPARE_UPC_STICKERS = 10
 const COILS_PER_STACK = 20
 const CHARGERS_PER_STACK = 10
 const LABEL_SHEET_COUNT = 3
@@ -525,25 +569,33 @@ function addStacks<T extends Object3D>(params: {
   return items
 }
 
+/**
+ * Where a kit box waits at pack-out: box `index` in stack index / 6, with the
+ * lower-numbered boxes on top so they're taken in unit order.
+ */
+export function getPackOutBoxPosition(boxIndex: number): Vector3 {
+  const stackIndex = Math.floor(boxIndex / BOXES_PER_STACK)
+  const stackEnd = Math.min(
+    stackIndex * BOXES_PER_STACK + BOXES_PER_STACK - 1,
+    BATCH_SIZE - 1,
+  )
+  const level = stackEnd - boxIndex
+  const base = PACK_OUT_BENCH_SPOTS.boxStacks[stackIndex]
+  return base
+    .clone()
+    .add(new Vector3(0, level * (WHITE_MAILER_BOX.heightM + 0.004), 0))
+}
+
 function populatePackOutBench(table: Group) {
   const spots = PACK_OUT_BENCH_SPOTS
-  const boxes: WhiteMailerBox[] = []
-  addStacks({
-    table,
-    bases: spots.boxStacks,
-    perStack: BOXES_PER_STACK,
-    heightM: WHITE_MAILER_BOX.heightM + 0.004,
-    create: () => {
-      const box = createWhiteMailerBox()
-      boxes.push(box)
-      return box.group
-    },
-  })
-  const boxesTopFirst = spots.boxStacks.flatMap((_, stackIndex) =>
-    boxes
-      .slice(stackIndex * BOXES_PER_STACK, (stackIndex + 1) * BOXES_PER_STACK)
-      .reverse(),
-  )
+  const boxes = Array.from({ length: BATCH_SIZE }, () => createWhiteMailerBox())
+  // The first boxes were engraved on an earlier laser run; the rest go to the laser bench.
+  for (const [index, box] of boxes.entries()) {
+    if (index >= BOXES_ENGRAVED_AT_START) continue
+    setBoxEngraved({ box, isEngraved: true })
+    box.group.position.copy(getPackOutBoxPosition(index))
+    table.add(box.group)
+  }
   const coils = addStacks({
     table,
     bases: spots.cableCoilStacks,
@@ -576,7 +628,7 @@ function populatePackOutBench(table: Group) {
   packingTote.group.position.copy(spots.tote)
   table.add(packingTote.group)
   return {
-    boxes: boxesTopFirst,
+    boxes,
     coils,
     chargers,
     labelSheets,
@@ -798,6 +850,74 @@ function populateBaggingBench(table: Group) {
   }
 }
 
+/**
+ * The UV laser bench: the Omni X with a finished run of six engraved boxes on
+ * its slide, and the rest of the batch's boxes (plus spares) blank beside it.
+ */
+function populateLaserBench(params: {
+  table: Group
+  boxes: WhiteMailerBox[]
+}): UvLaserState {
+  const { table } = params
+  const spots = LASER_BENCH_SPOTS
+  const laser = createUvLaser()
+  laser.group.position.copy(spots.laser)
+  table.add(laser.group)
+  const waiting = params.boxes.slice(BOXES_ENGRAVED_AT_START)
+  const loadedBoxes = waiting.slice(0, LASER_BOXES_PER_RUN)
+  for (const [slotIndex, box] of loadedBoxes.entries()) {
+    setBoxEngraved({ box, isEngraved: true })
+    const slot = laser.slots[slotIndex]
+    laser.slide.add(box.group)
+    box.group.position.copy(slot.position)
+    box.group.quaternion.copy(slot.quaternion)
+  }
+  const blankBoxes = waiting.slice(LASER_BOXES_PER_RUN)
+  const spares = Array.from({ length: SPARE_BLANK_BOXES }, () =>
+    createWhiteMailerBox(),
+  )
+  const stacked = [...blankBoxes, ...spares]
+  const perStack = Math.ceil(stacked.length / spots.blankStacks.length)
+  for (const [index, box] of stacked.entries()) {
+    const stackIndex = Math.floor(index / perStack)
+    const stackSize = Math.min(perStack, stacked.length - stackIndex * perStack)
+    // Lower-numbered boxes on top of each stack.
+    const level = stackSize - 1 - (index - stackIndex * perStack)
+    box.group.position
+      .copy(spots.blankStacks[stackIndex])
+      .add(new Vector3(0, level * (WHITE_MAILER_BOX.heightM + 0.004), 0))
+    table.add(box.group)
+  }
+  return {
+    laser,
+    loadedBoxes,
+    isEngraving: false,
+    engravedSeconds: 0,
+    runSeconds: 0,
+    blankBoxes,
+  }
+}
+
+/** The MUNBYN at pack-out with a roll of UPC stickers, each printed as it's needed. */
+function addThermalPrinter(table: Group): ThermalPrinterState {
+  const printer = createThermalPrinter()
+  printer.group.position.copy(PACK_OUT_BENCH_SPOTS.thermalPrinter)
+  table.add(printer.group)
+  const roll = Array.from({ length: BATCH_SIZE + SPARE_UPC_STICKERS }, () => {
+    const sticker = createSticker({
+      widthM: UPC_STICKER.widthM,
+      lengthM: UPC_STICKER.lengthM,
+      artwork: "upc",
+    })
+    sticker.visible = false
+    printer.group.add(sticker)
+    sticker.position.copy(printer.feedStart.position)
+    sticker.quaternion.copy(printer.feedStart.quaternion)
+    return sticker
+  })
+  return { printer, roll }
+}
+
 function populatePrinterBench(table: Group) {
   const spots = PRINTER_BENCH_SPOTS
   const p2s = createBambuPrinter("P2S")
@@ -880,6 +1000,15 @@ export function createWorld(
   )
   const printerBench = populatePrinterBench(tables.printer_bench)
   const labelPrinter = populateLabelBench(tables.label_bench)
+  const uvLaser = isBagged
+    ? null
+    : populateLaserBench({
+        table: tables.laser_bench,
+        boxes: packOutBench.boxes,
+      })
+  const thermalPrinter = isBagged
+    ? null
+    : addThermalPrinter(tables.pack_out_bench)
   const cartonLabel = createCartonLabel()
   cartonLabel.group.visible = false
   labelPrinter.group.add(cartonLabel.group)
@@ -900,6 +1029,7 @@ export function createWorld(
       ],
       charger: packOutBench.chargers[unitIndex],
       label: null,
+      upcLabel: null,
       bag: packOutBench.bags[unitIndex] ?? null,
       fnskuLabel: null,
       kit: null,
@@ -955,6 +1085,8 @@ export function createWorld(
     carriedTub: null,
     tubSpacers: [],
     labelPrinter,
+    uvLaser,
+    thermalPrinter,
     cables,
   }
 }

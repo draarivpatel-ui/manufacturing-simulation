@@ -39,6 +39,7 @@ export function ControlPanel(props: {
   onStartAt: (startId: LineStartId) => void
   onPrintsReady: () => void
   onLabelsPrinted: () => void
+  onEngravingDone: () => void
   onToggle?: () => void
   /** Extra controls shown at the end, e.g. the camera bar on phones. */
   children?: ReactNode
@@ -129,6 +130,14 @@ export function ControlPanel(props: {
             >
               Collect labels to pack-out
             </button>
+            {props.productLine === "kit" && (
+              <button
+                type="button"
+                onClick={() => props.onScenarioStart("engrave_boxes")}
+              >
+                Engrave boxes, take them to pack-out
+              </button>
+            )}
           </div>
           <div className="grp stack">
             <span className="eyebrow">
@@ -169,6 +178,11 @@ export function ControlPanel(props: {
               <button type="button" onClick={props.onLabelsPrinted}>
                 Labels printed
               </button>
+              {props.productLine === "kit" && (
+                <button type="button" onClick={props.onEngravingDone}>
+                  Engraving done
+                </button>
+              )}
             </div>
           </div>
           <div className="grp">

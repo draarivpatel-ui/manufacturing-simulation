@@ -5,7 +5,7 @@ import type { SideJob, SimContext } from "lib/simulation/sim-context"
 
 /** A floor circle in front of the label printer or a 3D printer. Standing on it offers that equipment's job. */
 export interface EquipmentPad {
-  id: "label_printer" | "p2s" | "h2s"
+  id: "label_printer" | "p2s" | "h2s" | "uv_laser"
   station: Station
   tableId: TableId
 }
@@ -18,7 +18,13 @@ export const EQUIPMENT_PADS: EquipmentPad[] = [
   },
   { id: "p2s", station: STATIONS.p2s, tableId: "printer_bench" },
   { id: "h2s", station: STATIONS.h2s, tableId: "printer_bench" },
+  { id: "uv_laser", station: STATIONS.uvLaser, tableId: "laser_bench" },
 ]
+
+/** The pads whose bench is on this line's floor. */
+export function getEquipmentPadsOnFloor(ctx: SimContext): EquipmentPad[] {
+  return EQUIPMENT_PADS.filter((pad) => ctx.tableLayout[pad.tableId])
+}
 
 /** How close to a pad's centre counts as standing on it. */
 export const EQUIPMENT_PAD_RADIUS_M = 0.38
@@ -27,7 +33,7 @@ export function getEquipmentPadAtOperator(
   ctx: SimContext,
 ): EquipmentPad | null {
   const { x, z } = ctx.operator.position
-  for (const pad of EQUIPMENT_PADS) {
+  for (const pad of getEquipmentPadsOnFloor(ctx)) {
     const pose = getStationStandPose(pad.station, ctx.tableLayout)
     if (Math.hypot(x - pose.x, z - pose.z) <= EQUIPMENT_PAD_RADIUS_M) return pad
   }

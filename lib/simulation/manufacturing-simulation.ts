@@ -1,6 +1,7 @@
 import { getJobPlan } from "lib/job/bagged-job-plan"
 import type { JobPlan, ProductLine } from "lib/job/job-plan"
 import { printLabelSheet, printLabelsNow } from "lib/job/label-collection"
+import { advanceUvLaser, finishEngravingNow } from "lib/job/laser-steps"
 import { advancePrinters, finishPrintsNow } from "lib/job/printer-steps"
 import { getSideJobAt, runPendingSideJob } from "lib/job/side-jobs"
 import {
@@ -34,6 +35,7 @@ import {
 } from "lib/simulation/pause-parking"
 import {
   collectLabelsScenario,
+  engraveBoxesScenario,
   pickUpScrewdriverScenario,
   refillSpacersScenario,
   runBatchScenario,
@@ -258,13 +260,19 @@ export class ManufacturingSimulation {
     if (
       this.activeTask &&
       progress.isJobActive &&
-      (scenarioId === "refill_spacers" || scenarioId === "collect_labels")
+      (scenarioId === "refill_spacers" ||
+        scenarioId === "collect_labels" ||
+        scenarioId === "engrave_boxes")
     ) {
       // A batch is running: fit the job in after the current unit instead of stopping the batch.
       const sideJob = getSideJobAt(
         {
           tableId:
-            scenarioId === "refill_spacers" ? "printer_bench" : "label_bench",
+            scenarioId === "refill_spacers"
+              ? "printer_bench"
+              : scenarioId === "collect_labels"
+                ? "label_bench"
+                : "laser_bench",
         },
         this.ctx,
       )
@@ -273,7 +281,9 @@ export class ManufacturingSimulation {
         this.ctx.statusText =
           scenarioId === "refill_spacers"
             ? "No printer has a finished plate yet. Use “3D prints are ready” to finish them."
-            : "The label printer hasn't printed any sheets yet. Use “Labels printed” to fill its tray."
+            : scenarioId === "collect_labels"
+              ? "The label printer hasn't printed any sheets yet. Use “Labels printed” to fill its tray."
+              : "Nothing to do at the UV laser yet. Use “Engraving done” to finish its run."
       return
     }
     if (progress.isOperatorBusy) return
@@ -283,6 +293,10 @@ export class ManufacturingSimulation {
     }
     if (scenarioId === "collect_labels") {
       this.startTask(collectLabelsScenario(this.ctx))
+      return
+    }
+    if (scenarioId === "engrave_boxes") {
+      this.startTask(engraveBoxesScenario(this.ctx))
       return
     }
     // Carry on from wherever the line is; start over once the carton has shipped.
@@ -326,6 +340,11 @@ export class ManufacturingSimulation {
   /** Fill the label printer's output tray now. */
   printLabelsNow(): void {
     printLabelsNow(this.ctx)
+  }
+
+  /** Finish the UV laser's running engraving now. */
+  finishEngravingNow(): void {
+    finishEngravingNow(this.ctx)
   }
 
   /** Fit printer or label work in after the current unit of the running task. */
@@ -517,6 +536,7 @@ export class ManufacturingSimulation {
   private advanceEquipment(dtSeconds: number): void {
     const { ctx } = this
     advancePrinters({ dtSeconds, populate: populatePlate }, ctx)
+    advanceUvLaser({ dtSeconds }, ctx)
     const { labelPrinter, cartonLabel } = ctx.world
     if (
       cartonLabel.group.visible &&

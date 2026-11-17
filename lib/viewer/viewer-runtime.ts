@@ -1,11 +1,13 @@
 import { countUnitsByStage, getNextLineWork } from "lib/job/bench-work"
 import type { ProductLine } from "lib/job/job-plan"
 import { countLabelsAtPackOut } from "lib/job/label-stock"
+import { getLaserStatusText } from "lib/job/laser-steps"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import { TABLE_PLACEMENTS, type TableId } from "lib/layout/station-layout"
 import { BAMBU_PRINTERS, type BambuPrinter } from "lib/models/bambu-printer"
 import type { QcDisplayState } from "lib/models/qc-laptop"
 import type { StickerArtwork } from "lib/models/sticker"
+import { OMNI_X } from "lib/models/uv-laser"
 import { getPinchWorldPosition } from "lib/operator/hand-pose"
 import {
   ASSEMBLY_PAD_RADIUS_M,
@@ -25,7 +27,10 @@ import type { ScenarioId } from "lib/simulation/scenarios"
 import type { CameraHint, SimulationMode } from "lib/simulation/sim-context"
 import { addSceneLighting } from "lib/viewer/add-scene-lighting"
 import { type CameraMode, CameraRig } from "lib/viewer/camera-rig"
-import { createBagLabelTextures } from "lib/viewer/create-bag-label-textures"
+import {
+  createBagLabelTextures,
+  createOriginEngravingTexture,
+} from "lib/viewer/create-bag-label-textures"
 import { createCartonLabelTexture } from "lib/viewer/create-carton-label-texture"
 import { createFloorTexture } from "lib/viewer/create-floor-texture"
 import { createLabelSprite } from "lib/viewer/create-label-sprite"
@@ -146,6 +151,7 @@ export class ViewerRuntime {
   private readonly stickerTexture = loadLabelTexture()
   /** The bare-unit line's bag sticker, FNSKU and FBA box labels. */
   private readonly bagLabelTextures = createBagLabelTextures()
+  private readonly originEngravingTexture = createOriginEngravingTexture()
   private readonly cartonLabelTexture = createCartonLabelTexture()
   private readonly qcScreenTextures: Record<QcDisplayState, Texture> = {
     idle: createQcScreenTexture("idle"),
@@ -244,6 +250,7 @@ export class ViewerRuntime {
     window.removeEventListener("blur", this.clearKeys)
     this.floorTexture?.dispose()
     this.stickerTexture.dispose()
+    this.originEngravingTexture.dispose()
     for (const texture of Object.values(this.bagLabelTextures))
       texture.dispose()
     this.cartonLabelTexture.dispose()
@@ -285,6 +292,12 @@ export class ViewerRuntime {
   /** Fill the label printer's tray now. */
   printLabelsNow(): void {
     this.simulation.printLabelsNow()
+    this.emitHud()
+  }
+
+  /** Finish the UV laser's running engraving now. */
+  finishEngravingNow(): void {
+    this.simulation.finishEngravingNow()
     this.emitHud()
   }
 
@@ -450,6 +463,14 @@ export class ViewerRuntime {
     ) {
       this.texturedLabelSheetCount = world.labelPrinter.printedSheets.length
       world.root.traverse((object) => {
+        if (object instanceof Mesh && object.userData.isOriginEngraving) {
+          const material = object.material as MeshBasicMaterial
+          if (material.map === this.originEngravingTexture) return
+          material.map = this.originEngravingTexture
+          material.color.set(0xffffff)
+          material.needsUpdate = true
+          return
+        }
         if (!(object instanceof Mesh) || !object.userData.isStickerFace) return
         const material = object.material as MeshStandardMaterial
         const artwork: StickerArtwork =
@@ -493,6 +514,21 @@ export class ViewerRuntime {
       printer.group.add(sprite)
       this.printerSigns[index] = { text, sprite }
     }
+    const laser = world.uvLaser
+    if (!laser) return
+    const laserIndex = world.printers.length
+    const text = getLaserStatusText(laser)
+    const sign = this.printerSigns[laserIndex]
+    if (sign?.text === text) return
+    if (sign) {
+      sign.sprite.removeFromParent()
+      sign.sprite.material.map?.dispose()
+      sign.sprite.material.dispose()
+    }
+    const sprite = createLabelSprite({ text, widthM: 0.8 })
+    sprite.position.set(0, OMNI_X.heightM + 0.12, 0)
+    laser.laser.group.add(sprite)
+    this.printerSigns[laserIndex] = { text, sprite }
   }
 
   private updateWalkInput(): void {
@@ -601,7 +637,8 @@ export class ViewerRuntime {
     }
     const standingOn = getEquipmentPadAtOperator(ctx)
     for (const { pad, mesh } of this.equipmentPads) {
-      mesh.visible = ctx.mode === "game"
+      mesh.visible =
+        ctx.mode === "game" && Boolean(ctx.tableLayout[pad.tableId])
       if (!mesh.visible) continue
       const hasJob = getPadJob(pad, ctx) !== null
       const isStandingOn = standingOn === pad
@@ -693,9 +730,10 @@ export class ViewerRuntime {
       labelsAtPackOut: countLabelsAtPackOut(ctx.world),
       printedLabelSheets: ctx.world.labelPrinter.printedSheets.length,
       spacersInBasket: ctx.world.spacerStock.length,
-      printerLines: ctx.world.printers.map((printer) =>
-        getPrinterStatusText(printer),
-      ),
+      printerLines: [
+        ...ctx.world.printers.map((printer) => getPrinterStatusText(printer)),
+        ...(ctx.world.uvLaser ? [getLaserStatusText(ctx.world.uvLaser)] : []),
+      ],
     })
   }
 

@@ -26,7 +26,11 @@ import { ESD_BAG, setEsdBagFilled } from "lib/models/esd-bag"
 import { createM3Screw, LONG_SCREW_SHANK_M } from "lib/models/nema17-motor"
 import { createPartKit } from "lib/models/part-kit"
 import { createScrewPouch } from "lib/models/screw-pouch"
-import { BOX_POCKETS, POCKET_FLOOR_YM } from "lib/models/white-mailer-box"
+import {
+  BOX_POCKETS,
+  POCKET_FLOOR_YM,
+  setBoxEngraved,
+} from "lib/models/white-mailer-box"
 import type { SimContext } from "lib/simulation/sim-context"
 import {
   BAG_LYING_QUATERNION,
@@ -34,7 +38,11 @@ import {
   MOTOR_IN_BOX_QUATERNION,
   SCREW_LYING_QUATERNION,
 } from "lib/world/bench-spots"
-import { scatter, setOutMotorCable } from "lib/world/create-world"
+import {
+  getPackOutBoxPosition,
+  scatter,
+  setOutMotorCable,
+} from "lib/world/create-world"
 import { type Object3D, Vector3 } from "three"
 
 /** The line benches a session can start at, each with a full batch ready for it. */
@@ -140,6 +148,24 @@ function testUnitInstantly(
   unit.nextStepIndex = 0
 }
 
+/** Run every kit box through the laser now and stack them all at pack-out. */
+function engraveAllBoxesInstantly(ctx: SimContext): void {
+  const { world } = ctx
+  const laser = world.uvLaser
+  if (!laser) return
+  const packBench = world.tables.pack_out_bench
+  for (const [unitIndex, unit] of world.units.entries()) {
+    setBoxEngraved({ box: unit.box, isEngraved: true })
+    packBench.add(unit.box.group)
+    unit.box.group.position.copy(getPackOutBoxPosition(unitIndex))
+    unit.box.group.quaternion.identity()
+  }
+  laser.loadedBoxes = []
+  laser.blankBoxes = []
+  laser.isEngraving = false
+  laser.laser.slide.position.z = 0
+}
+
 /** Box a tested unit with its cables, charger and label, and put the box in the tote. */
 function packUnitInstantly(
   params: { unitIndex: number },
@@ -166,6 +192,14 @@ function packUnitInstantly(
   unit.charger.position.set(charger.x, POCKET_FLOOR_YM, charger.z)
   unit.charger.quaternion.identity()
   box.lid.rotation.x = 0
+  const upc = world.thermalPrinter?.roll.pop()
+  if (upc) {
+    upc.visible = true
+    box.group.add(upc)
+    upc.position.copy(box.barcodeSpot.position)
+    upc.quaternion.copy(box.barcodeSpot.quaternion)
+    unit.upcLabel = upc
+  }
   const label = takeNextLabel(world)
   if (label) {
     box.lid.add(label)
@@ -318,6 +352,7 @@ export function setUpLineAt(
       moveShuttle({ shuttle: FINISHED_RACK_SHUTTLE, toNextBench: true }, ctx)
     }
     if (depth >= 2) {
+      engraveAllBoxesInstantly(ctx)
       for (const unitIndex of unitIndices) testUnitInstantly({ unitIndex }, ctx)
       moveShuttle({ shuttle: FINISHED_RACK_SHUTTLE, toNextBench: false }, ctx)
       moveShuttle({ shuttle: READY_RACK_SHUTTLE, toNextBench: true }, ctx)
