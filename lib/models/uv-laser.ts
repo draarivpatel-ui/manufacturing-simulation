@@ -30,20 +30,18 @@ export const OMNI_X = {
   slideOutZM: 0.28,
 } as const
 
-/** Mailer boxes per run: 3 across by 2 deep on the slide, back face up. */
-export const LASER_BOX_COLUMNS = 3
+/** Mailer boxes per run: 2 across (108 mm each) by 2 deep (184 mm each) on the slide, base up. */
+export const LASER_BOX_COLUMNS = 2
 export const LASER_BOX_ROWS = 2
 export const LASER_BOXES_PER_RUN = LASER_BOX_COLUMNS * LASER_BOX_ROWS
 
 /**
- * A mailer lying on its front with the back face up and its long side along
- * the slide (Z): turn the back (-Z) up, then the length onto Z.
+ * A mailer upside down with its base up and its long side along the slide
+ * (Z): turn it over about its length, then the length onto Z.
  */
 export const BOX_ON_SLIDE_QUATERNION = new Quaternion()
   .setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2)
-  .multiply(
-    new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2),
-  )
+  .multiply(new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI))
 
 const TRAY_THICKNESS_M = 0.008
 
@@ -187,20 +185,16 @@ export function createUvLaser(): UvLaser {
       position: [0, TRAY_THICKNESS_M / 2, 0],
     }),
   )
-  // Box origin for each place: the box lies on its front, so it stands
-  // `widthM` tall and reaches `heightM` along X from its origin.
+  // Box origin for each place: the box lies upside down, `heightM` tall.
   const box = WHITE_MAILER_BOX
   const slots: Object3D[] = []
   for (let row = 0; row < LASER_BOX_ROWS; row++)
     for (let column = 0; column < LASER_BOX_COLUMNS; column++) {
       const slot = new Object3D()
-      const centerX = (column - (LASER_BOX_COLUMNS - 1) / 2) * 0.082
+      const centerX = (column - (LASER_BOX_COLUMNS - 1) / 2) * 0.114
       const centerZ = ((LASER_BOX_ROWS - 1) / 2 - row) * 0.19
-      slot.position.set(
-        centerX - box.heightM / 2,
-        TRAY_THICKNESS_M + box.widthM / 2,
-        centerZ,
-      )
+      // Upside down, the box's origin (middle of the base) is on top.
+      slot.position.set(centerX, TRAY_THICKNESS_M + box.heightM, centerZ)
       slot.quaternion.copy(BOX_ON_SLIDE_QUATERNION)
       slide.add(slot)
       slots.push(slot)
@@ -216,10 +210,14 @@ export function createUvLaser(): UvLaser {
   return { group, slide, slots, statusLight, beam, beamSpot, headPoint }
 }
 
-/** Where the engraving lands on a box in a slide slot: the middle of its back face, now on top. */
-export function getEngravePointOnSlot(slot: Object3D): Vector3 {
-  const box = WHITE_MAILER_BOX
-  return slot.position
+/** Where the engraving lands on a box in a slide slot: its spot on the base, now on top. */
+export function getEngravePointOnSlot(params: {
+  slot: Object3D
+  engravingSpot: Vector3
+}): Vector3 {
+  return params.engravingSpot
     .clone()
-    .add(new Vector3(box.heightM / 2, box.widthM / 2, 0))
+    .setY(0)
+    .applyQuaternion(params.slot.quaternion)
+    .add(params.slot.position)
 }

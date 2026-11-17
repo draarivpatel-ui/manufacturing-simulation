@@ -121,9 +121,11 @@ export function getLaserStatusText(laser: UvLaserState): string {
 function aimBeam(params: { laser: UvLaserState; slotIndex: number }): void {
   const { laser: state, slotIndex } = params
   const { laser } = state
-  const target = getEngravePointOnSlot(laser.slots[slotIndex]).add(
-    laser.slide.position,
-  )
+  const box = state.loadedBoxes[slotIndex]
+  const target = getEngravePointOnSlot({
+    slot: laser.slots[slotIndex],
+    engravingSpot: box.engraving.position,
+  }).add(laser.slide.position)
   const direction = target.clone().sub(laser.headPoint)
   const lengthM = direction.length()
   laser.beam.position.copy(laser.headPoint).addScaledVector(direction, 0.5)
@@ -232,7 +234,7 @@ function* unloadEngravedBoxes(
   const bundle = new Group()
   bundle.position.copy(LASER_BENCH_SPOTS.engravedBundle)
   bench.add(bundle)
-  ctx.statusText = `Pulling the slide out: ${engraved.length} boxes with "Made in China" on the back`
+  ctx.statusText = `Pulling the slide out: ${engraved.length} boxes with "Made in China" on the base`
   yield* slideTo({ laser: state, isOut: true })
   for (const [index, box] of engraved.entries()) {
     ctx.statusText = `Engraved box ${index + 1} of ${engraved.length} off the slide`
@@ -251,7 +253,7 @@ function* unloadEngravedBoxes(
   return bundle
 }
 
-/** Load the next blank boxes onto the slide, back face up, push it in and start the run. */
+/** Load the next blank boxes onto the slide, base up, push it in and start the run. */
 function* loadAndStart(ctx: SimContext): SimTask {
   const state = getLaser(ctx)
   const { laser } = state
@@ -264,7 +266,7 @@ function* loadAndStart(ctx: SimContext): SimTask {
   if (laser.slide.position.z < OMNI_X.slideOutZM)
     yield* slideTo({ laser: state, isOut: true })
   for (const [index, box] of run.entries()) {
-    ctx.statusText = `Blank box ${index + 1} of ${run.length} onto the slide, back face up`
+    ctx.statusText = `Blank box ${index + 1} of ${run.length} onto the slide, base up`
     const slot = laser.slots[index]
     yield* handBox(
       {

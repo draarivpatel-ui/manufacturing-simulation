@@ -55,7 +55,7 @@ export interface WhiteMailerBox {
   /** Where the product label goes: near the left end of the closed lid, in lid coordinates. */
   stickerSpot: Object3D
   /**
-   * "Made in China" lasered into the back face. Hidden until the box has been
+   * "Made in China" lasered into the base, beside the UPC sticker. Hidden until the box has been
    * through the UV laser; the viewer gives it the engraved text.
    */
   engraving: Mesh
@@ -63,7 +63,7 @@ export interface WhiteMailerBox {
   barcodeSpot: Object3D
 }
 
-/** The engraved country-of-origin mark on the back face: about 50 x 9 mm. */
+/** The engraved country-of-origin mark on the base: about 50 x 9 mm. */
 export const ORIGIN_ENGRAVING = { widthM: 0.05, heightM: 0.009 } as const
 
 /** Clearance from the bottom edges to the UPC sticker, a little over Amazon's 1/4". */
@@ -181,9 +181,10 @@ export function createWhiteMailerBox(): WhiteMailerBox {
       polygonOffsetFactor: -1,
     }),
   )
-  // On the outside of the back wall, facing out (-Z), reading left to right from behind.
-  engraving.position.set(0, b.heightM * 0.45, -b.widthM / 2 - 0.0002)
-  engraving.rotation.y = Math.PI
+  // On the underside of the base, at the other end from the UPC sticker,
+  // facing down and reading left to right with the box turned over.
+  engraving.position.set(b.lengthM / 4, -0.0002, 0)
+  engraving.rotation.x = Math.PI / 2
   engraving.userData.isOriginEngraving = true
   engraving.visible = false
   group.add(engraving)

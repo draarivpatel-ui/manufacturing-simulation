@@ -55,7 +55,7 @@ test("the bare-unit line has no box laser or UPC printer", () => {
   expect(world.thermalPrinter).toBeNull()
 })
 
-test("the laser job unloads a run to pack-out and starts the next six", () => {
+test("the laser job unloads a run to pack-out and starts the next run", () => {
   const simulation = new ManufacturingSimulation()
   simulation.setMode("simulation")
   simulation.startScenario("engrave_boxes")
@@ -86,12 +86,12 @@ test("in game mode, E at the laser circle runs the laser job", () => {
   simulation.ctx.operator.ccwYawRadians = pose.ccwYawRadians
   const actions = simulation.getGameActions()
   expect(actions.benchAction?.label).toBe(
-    "Take 6 engraved boxes to pack-out and start 6 more on the UV laser",
+    "Take 4 engraved boxes to pack-out and start 4 more on the UV laser",
   )
 })
 
 test(
-  "a full kit batch: every box engraved, a UPC sticker on its bottom corner, all shipped",
+  "a full kit batch: every box engraved, a UPC sticker on the base, all shipped",
   () => {
     const simulation = new ManufacturingSimulation()
     simulation.startScenario("run_batch")

@@ -6,8 +6,8 @@ What goes on the kit's packaging for Amazon FBA, and how the line does it. This 
 
 | Mark | What | How the line does it |
 | --- | --- | --- |
-| **Barcode** | One scannable barcode per sellable unit, flat, at least ¼" from edges and corners. | A 2 × 1" direct-thermal sticker with UPC-A **884400898623** (GS1 GTIN-12 for this kit), printed on a MUNBYN roll printer at pack-out. It goes on a bottom corner, about 8 mm from both edges. Artwork: [tscircuit/product-packaging, products/nema17/barcodes](https://github.com/tscircuit/product-packaging/tree/main/products/nema17/barcodes). |
-| **Country of origin** | "Made in China", permanent and legible. | UV-laser engraved on the back face (about 50 × 9 mm) before the box reaches pack-out. |
+| **Barcode** | One scannable barcode per sellable unit, flat, at least ¼" from edges and corners. | A 2 × 1" direct-thermal sticker with UPC-A **884400898623** (GS1 GTIN-12 for this kit), printed on a MUNBYN roll printer at pack-out. It goes on a corner of the base, about 8 mm from both edges, beside the engraved "Made in China". Artwork: [tscircuit/product-packaging, products/nema17/barcodes](https://github.com/tscircuit/product-packaging/tree/main/products/nema17/barcodes). |
+| **Country of origin** | "Made in China", permanent and legible. | UV-laser engraved on the base (about 50 × 9 mm), at the other end from the UPC sticker, before the box reaches pack-out. |
 | **Product label** | Not an Amazon requirement; no second barcode on it. | The tscircuit 2 × 4" AveneMark label on the lid, unchanged. |
 
 Still to confirm for the real shipment:
@@ -30,4 +30,4 @@ Still to confirm for the real shipment:
 
 [ComMarker Omni X](https://store.commarker.com/products/omni-x-uv-laser-engraver), 355 nm UV, fully enclosed (Class 1), about 515 × 320 × 655 mm. The standard field is 150 × 150 mm. With the slide extension it's 150 × 400 mm (6 W) or 250 × 400 mm (12 W).
 
-The sim assumes the **12 W with the slide**: six mailers lie on their fronts, back face up, 3 across (79 mm each) by 2 deep (184 mm each), in 237 × 368 mm. On the 6 W slide (150 mm wide) only one box fits across, so a run would be 2 boxes. Times are estimates: 20 s for homing, autofocus and framing, then 12 s a box.
+The sim assumes the **12 W with the slide**: four mailers lie upside down, base up, 2 across (108 mm each) by 2 deep (184 mm each), in 222 × 374 mm. On the 6 W slide (150 mm wide) only one box fits across, so a run would be 2 boxes. Times are estimates: 20 s for homing, autofocus and framing, then 12 s a box.

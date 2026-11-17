@@ -140,7 +140,7 @@ function* printUpcSticker(
   return sticker
 }
 
-/** Take the next engraved box off the stack, print its UPC sticker and put it on a bottom corner. */
+/** Take the next engraved box off the stack, print its UPC sticker and put it on a corner of the base. */
 function* takeBoxAndApplyUpc(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
   const unit = world.units[params.unitIndex]
@@ -187,7 +187,7 @@ function* takeBoxAndApplyUpc(params: UnitParams, ctx: SimContext): SimTask {
     ctx,
   )
 
-  ctx.statusText = `Unit ${params.unitIndex + 1}: UPC sticker on the bottom corner, flat and clear of the edges`
+  ctx.statusText = `Unit ${params.unitIndex + 1}: UPC sticker on a corner of the base, beside "Made in China"`
   const hand = operator.rightHand
   yield* grabObject({
     hand,
@@ -423,7 +423,7 @@ export const PACK_OUT_STAGE: JobStage = {
   isPerUnit: true,
   steps: [
     {
-      label: "Engraved box, UPC sticker on the bottom",
+      label: "Engraved box, UPC sticker on the base",
       station: STATIONS.packOut,
       closeUpView: PACK_CLOSE_UP,
       getFocusPoint: (_params, ctx) => getPackingFocusPoint(ctx),

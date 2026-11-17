@@ -182,7 +182,7 @@ export interface LabelPrinterState {
   secondsSinceLastSheet: number
 }
 
-/** The UV laser that engraves "Made in China" on the kit boxes, a run of up to six at a time. */
+/** The UV laser that engraves "Made in China" on the kit boxes, a run of up to four at a time. */
 export interface UvLaserState {
   laser: UvLaser
   /** Boxes on the slide, in slot order: engraving, or engraved and waiting to be unloaded. */
@@ -851,7 +851,7 @@ function populateBaggingBench(table: Group) {
 }
 
 /**
- * The UV laser bench: the Omni X with a finished run of six engraved boxes on
+ * The UV laser bench: the Omni X with a finished run of engraved boxes on
  * its slide, and the rest of the batch's boxes (plus spares) blank beside it.
  */
 function populateLaserBench(params: {
