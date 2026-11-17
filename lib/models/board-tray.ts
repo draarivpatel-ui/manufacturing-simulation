@@ -3,9 +3,9 @@ import type { MotorRack } from "lib/models/motor-rack"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
 import { Group, Object3D } from "three"
 
-/** 6 columns (along X) by 5 rows (along Z): one batch of 30 boards. */
+/** 6 columns (along X) by 5 rows (along Z): 30 pockets, room for a whole batch. */
 const TRAY_COLUMNS = 6
-const TRAY_ROWS = BATCH_SIZE / TRAY_COLUMNS
+const TRAY_ROWS = Math.ceil(BATCH_SIZE / TRAY_COLUMNS)
 const POCKET_PITCH_M = 0.05
 const POCKET_SIZE_M = 0.046
 

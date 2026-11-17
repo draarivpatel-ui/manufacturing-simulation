@@ -125,36 +125,6 @@ function drawFnskuLabel(): HTMLCanvasElement {
   })
 }
 
-/** FBA box ID label, 4" x 6": shipment, box number and the box barcode. */
-function drawBoxIdLabel(): HTMLCanvasElement {
-  return createLandscapeCanvas({
-    shortPx: 400,
-    longPx: 600,
-    draw: (context, width) => {
-      context.strokeStyle = INK
-      context.lineWidth = 4
-      context.strokeRect(8, 8, width - 16, 384)
-      context.fillStyle = INK
-      context.font = "700 34px 'IBM Plex Sans', sans-serif"
-      context.fillText("FBA: tscircuit", 28, 56)
-      context.font = "500 24px 'IBM Plex Sans', sans-serif"
-      context.fillText("SHIP TO: Amazon fulfillment center", 28, 96)
-      context.fillText("FBA15TSC0322 · Box 1 of 1", 28, 130)
-      context.fillText("Mixed SKUs: No · Qty 30", 28, 162)
-      drawBars({
-        context,
-        value: "FBA15TSC0322U000001",
-        x: 28,
-        y: 190,
-        width: width - 56,
-        height: 130,
-      })
-      context.font = "600 26px 'IBM Plex Mono', monospace"
-      context.fillText("FBA15TSC0322U000001", 120, 360)
-    },
-  })
-}
-
 /** Canvas textures for the bare-unit line's labels; the kit label uses the approved artwork image. */
 export function createBagLabelTextures(): Record<
   Exclude<StickerArtwork, "kit_label">,
@@ -169,6 +139,5 @@ export function createBagLabelTextures(): Record<
   return {
     esd_caution: make(drawEsdCautionLabel()),
     fnsku: make(drawFnskuLabel()),
-    fba_box: make(drawBoxIdLabel()),
   }
 }

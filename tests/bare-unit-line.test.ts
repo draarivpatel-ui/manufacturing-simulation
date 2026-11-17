@@ -3,6 +3,7 @@ import { getOccupants } from "lib/job/container-slots"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import {
   BARE_UNIT_TABLE_LAYOUT,
+  BATCH_SIZE,
   STATIONS,
   type Station,
   TABLE_PLACEMENTS,
@@ -49,7 +50,9 @@ test("the contents fit the Ellbest 80 x 120 mm bag snugly; bag, pouch and carton
   for (const sideM of [c.innerLengthM, c.innerWidthM, c.innerHeightM])
     expect(sideM + 2 * c.boardThicknessM).toBeLessThan(25 * METERS_PER_INCH)
   const units = c.columns * c.rows * c.layers
+  // 30 places: room for the whole batch.
   expect(units).toBe(30)
+  expect(units).toBeGreaterThanOrEqual(BATCH_SIZE)
   expect((units * BAGGED_UNIT_KG + CARTON_KG) * 2.20462).toBeLessThan(50)
   expect(c.columns * c.itemPitchXM).toBeLessThanOrEqual(c.innerLengthM)
   expect(c.rows * c.itemPitchZM).toBeLessThanOrEqual(c.innerWidthM)
@@ -64,7 +67,6 @@ test("the full kit line is unchanged: assembly bench on the floor, no bags or te
     world.units.every((unit) => unit.bag === null && unit.kit === null),
   ).toBe(true)
   expect(world.fnskuSheets).toHaveLength(0)
-  expect(world.boxIdLabel).toBeNull()
   expect(world.testMotor).toBeNull()
 })
 
@@ -102,7 +104,7 @@ test("the bare-unit floor: no assembly bench, QC moved up into its place, boards
 })
 
 test(
-  "a bare-unit batch of 30: tested beside the motor, screws pouched, everything bagged, 30 to a carton",
+  "a full bare-unit batch: tested beside the motor, screws pouched, everything bagged, one carton with a box ID",
   () => {
     const simulation = new ManufacturingSimulation({ productLine: "bagged" })
     simulation.startScenario("run_batch")
@@ -117,7 +119,9 @@ test(
         world.units.some((unit) => unit.pcb.group === child),
       ),
     ).toBe(false)
-    expect(testMotor.rotor.rotation.y).toBeGreaterThan(Math.PI * 2 * 9 * 29)
+    expect(testMotor.rotor.rotation.y).toBeGreaterThan(
+      Math.PI * 2 * 9 * (BATCH_SIZE - 1),
+    )
     for (const unit of world.units) {
       const { bag, kit, screwPouch } = unit
       if (!bag || !kit || !screwPouch)
@@ -141,8 +145,13 @@ test(
       expect(unit.fnskuLabel?.parent).toBe(bag.group)
       expect(bag.group.parent).toBe(world.carton.group)
     }
-    expect(getOccupants(world.carton)).toHaveLength(30)
-    expect(world.boxIdLabel?.visible).toBe(true)
+    expect(getOccupants(world.carton)).toHaveLength(BATCH_SIZE)
+    // The FBA box ID from the label printer, on the front of the carton.
+    expect(world.cartonLabel.group.visible).toBe(true)
+    expect(world.cartonLabel.group.parent).toBe(world.carton.group)
+    expect(world.cartonLabel.group.position.y).toBeLessThan(
+      BAG_SHIPPING_CARTON.innerHeightM,
+    )
     expect(world.carton.tape.scale.x).toBeCloseTo(1, 5)
   },
   { timeout: 120_000 },
@@ -187,9 +196,9 @@ test(
   { timeout: 120_000 },
 )
 
-test("jumping to ship-ready has 30 bagged units in the tote", () => {
+test("jumping to ship-ready has a full batch of bagged units in the tote", () => {
   const simulation = new ManufacturingSimulation({ productLine: "bagged" })
-  simulation.setJobUnitCount(30)
+  simulation.setJobUnitCount(BATCH_SIZE)
   simulation.startAt("ship_ready")
   const { world } = simulation.ctx
   expect(world.units.every((unit) => unit.stage === "packed")).toBe(true)

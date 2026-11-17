@@ -10,7 +10,7 @@ export interface HudSnapshot {
   mode: SimulationMode
   /** The full kit line or the bare-unit bag line. */
   productLine: ProductLine
-  /** Units in this job: 30 for the full batch, or 1 motor. */
+  /** Units in this job: a full batch or 1 motor. */
   jobUnitCount: number
   statusText: string
   isPaused: boolean

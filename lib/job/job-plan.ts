@@ -154,7 +154,7 @@ export function createJobPlan(params: {
   }
 }
 
-/** The full kit: boxed with cables, charger and label, 30 mailers to an Amazon carton. */
+/** The full kit: boxed with cables, charger and label, a batch of mailers to an Amazon carton. */
 export const KIT_JOB_PLAN = createJobPlan({
   productLine: "kit",
   packOutStage: PACK_OUT_STAGE,

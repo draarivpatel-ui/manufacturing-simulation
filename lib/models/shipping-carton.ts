@@ -1,14 +1,15 @@
+import { CARTON_LABEL } from "lib/models/carton-label"
 import { ESD_BAG } from "lib/models/esd-bag"
 import { WHITE_MAILER_BOX } from "lib/models/white-mailer-box"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
 import { METERS_PER_INCH } from "lib/units"
-import { Group, type Mesh, Object3D } from "three"
+import { Group, type Mesh, Object3D, Quaternion, Vector3 } from "three"
 
 /**
- * Amazon FBA shipping carton for 30 packed units. The packed 7x4x3 mailers
+ * Amazon FBA shipping carton. The packed 7x4x3 mailers
  * (outer ~7.25 x 4.25 x 3.1 in) stack 2 x 3 x 5 = 30 in a 14.5 x 12.75 x
  * 15.6 in block, so a 15 x 13 x 17 in (inside) carton fits them with a little
- * room for void fill. About 37 lb packed, under the FBA 50 lb carton limit.
+ * room for void fill. The 25-unit batch leaves five positions open.
  */
 /** A carton's inside size and the grid its items pack into. */
 export interface CartonSpec {
@@ -39,9 +40,10 @@ export const SHIPPING_CARTON = {
 } as const satisfies CartonSpec
 
 /**
- * FBA carton for 30 bare units in 3" x 5" ESD bags, standing on edge 3 along
- * by 10 across: 10 x 8 x 6 in inside. About 30 g a bagged kit, so roughly
- * 2-3 lb packed, far under the FBA 50 lb limit and 25 in per side.
+ * FBA carton for bare units in 80 x 120 mm ESD bags, standing on edge 3 along
+ * by 10 across (30 places): 10 x 8 x 6 in inside. About 23 g a bagged unit,
+ * so a batch is about 2 lb packed, far under the FBA 50 lb limit and 25 in
+ * per side.
  */
 export const BAG_SHIPPING_CARTON = {
   innerLengthM: 10 * METERS_PER_INCH,
@@ -79,6 +81,11 @@ export interface ShippingCarton {
   tapeLengthM: number
   leftGrip: Object3D
   rightGrip: Object3D
+  /**
+   * Where the 4" x 6" FBA box ID label goes on the front face: upright on a
+   * tall carton, turned sideways on one too short for 6".
+   */
+  boxIdLabelSpot: Object3D
 }
 
 /** How far each flap is folded open, in radians. */
@@ -223,6 +230,19 @@ export function createShippingCarton(
   const rightGrip = new Object3D()
   rightGrip.position.set(lengthM / 2, heightM * 0.7, 0)
   group.add(leftGrip, rightGrip)
+  const boxIdLabelSpot = new Object3D()
+  // The label's printed face is its local +Y; turned to face out of the front (+Z).
+  boxIdLabelSpot.quaternion.setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
+  const frontZ = c.innerWidthM / 2 + t + 0.0005
+  if (c.innerHeightM >= CARTON_LABEL.lengthM + 0.05) {
+    boxIdLabelSpot.position.set(-0.055, c.innerHeightM * 0.71, frontZ)
+  } else {
+    boxIdLabelSpot.position.set(0, c.innerHeightM * 0.45, frontZ)
+    boxIdLabelSpot.quaternion.multiply(
+      new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2),
+    )
+  }
+  group.add(boxIdLabelSpot)
   return {
     group,
     slots,
@@ -236,5 +256,6 @@ export function createShippingCarton(
     tapeLengthM: lengthM,
     leftGrip,
     rightGrip,
+    boxIdLabelSpot,
   }
 }

@@ -1,13 +1,12 @@
 import { getTablePoint } from "lib/job/bench-frames"
-import { getOccupants, releaseSlot, reserveSlot } from "lib/job/container-slots"
-import type { JobStage, JobStep, UnitParams } from "lib/job/job-step"
+import { releaseSlot, reserveSlot } from "lib/job/container-slots"
+import type { JobStage, UnitParams } from "lib/job/job-step"
 import {
   countLabelsOnSheets,
   takeNextFromSheets,
   takeNextLabel,
 } from "lib/job/label-stock"
 import { getCartonFocusPoint, SHIP_CLOSE_UP } from "lib/job/ship-ready-steps"
-import { TRANSFER_STEPS } from "lib/job/transfer-steps"
 import { STATIONS } from "lib/layout/station-layout"
 import { createCoiledJstCable } from "lib/models/coiled-jst-cable"
 import { ESD_BAG, type EsdBag, setEsdBagFilled } from "lib/models/esd-bag"
@@ -635,29 +634,4 @@ export const LOAD_BAG_CARTON_STAGE: JobStage = {
       run: loadBagIntoCarton,
     },
   ],
-}
-
-/** FBA box ID label on the carton's side, then fold, tape and ship as usual. */
-function* labelSealAndShip(params: UnitParams, ctx: SimContext): SimTask {
-  const { world, operator } = ctx
-  const label = world.boxIdLabel
-  if (label) {
-    ctx.statusText = `FBA box ID label on the side: ${getOccupants(world.carton).length} units in this box`
-    yield* reachHand({
-      hand: operator.rightHand,
-      getTarget: trackObjectPoint({ object: label }),
-      durationSeconds: 0.6,
-    })
-    label.visible = true
-    playCue("label_press", ctx)
-    yield* waitSeconds(0.4)
-    yield* releaseHand(operator.rightHand)
-  }
-  yield* TRANSFER_STEPS.sealAndShip.run(params, ctx)
-}
-
-export const LABEL_SEAL_AND_SHIP_STEP: JobStep = {
-  ...TRANSFER_STEPS.sealAndShip,
-  label: "Box ID label, seal the carton, out to ship",
-  run: labelSealAndShip,
 }

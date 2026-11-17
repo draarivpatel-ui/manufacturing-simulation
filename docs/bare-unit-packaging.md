@@ -62,22 +62,22 @@ Amazon ended its own US prep and labelling services for shipments created from J
 | Requirement | Amazon rule | Our carton |
 | --- | --- | --- |
 | **Size** | No side over 25". | 10 × 8 × 6 in inside. |
-| **Weight** | 50 lb standard. Over 50 lb needs "Team Lift" labels on the top and sides. | A bagged unit is about 23 g: board 8, spacer 2.6, screws 4.4, cable 5, bags 3.5. 30 of them plus the carton ≈ 2 lb. |
-| **Packing** | Bags shouldn't move, and loose fill such as packing peanuts or shredded paper isn't allowed. | 30 bags standing on edge, 3 along by 10 across. Fill the gap at the side with a sheet of kraft paper. |
+| **Weight** | 50 lb standard. Over 50 lb needs "Team Lift" labels on the top and sides. | A bagged unit is about 23 g: board 8, spacer 2.6, screws 4.4, cable 5, bags 3.5. 25 of them plus the carton ≈ 1.8 lb. |
+| **Packing** | Bags shouldn't move, and loose fill such as packing peanuts or shredded paper isn't allowed. | 25 bags standing on edge, 3 along by up to 10 across (30 places). Fill the gaps at the side with a sheet of kraft paper. |
 | **Box ID label** | Every carton gets its own FBA box ID label from the shipment in Seller Central. Never reuse one. Put it on a flat side, not across a seam, and don't cover it with the carrier label. | 4" × 6" label on a long side, applied before sealing. |
-| **Box contents** | Enter the SKU and quantity for each box in Seller Central. Wrong contents can bring fees or blocked shipments. | One SKU, 30 units per box. |
+| **Box contents** | Enter the SKU and quantity for each box in Seller Central. Wrong contents can bring fees or blocked shipments. | One SKU, 25 units per box. |
 | **Old markings** | Remove or cover any old labels or barcodes on a reused box. | New cartons only. |
 
 ## Manufacturing steps for the bare unit
 
 1. **Spacers (P2S and H2S).** Print the 4 mm backface spacers and refill the bagging bench's basket from the tub.
-2. **QC bench (where the assembly bench used to be; one test motor).** All 30 boards arrive in a black ESD tray with an amber rim. For each board:
+2. **QC bench (where the assembly bench used to be; one test motor).** All 25 boards in the batch arrive in a black 30-pocket ESD tray with an amber rim. For each board:
    1. Set it on the ESD mat right beside the test motor. Don't screw it on.
    2. Plug in the test motor's cable (J1), the laptop USB-C (DATA) and the charging station (PWR).
    3. Spin the motor and watch current and stall on the laptop.
    4. Unplug everything and put the board in the passed tray (green rim).
 
-   Test one at a time (green circle) or all 30, and carry the passed tray to bagging (amber circle) whenever you like.
+   Test one at a time (green circle) or all 25, and carry the passed tray to bagging (amber circle) whenever you like.
 3. **Labels.** The Epson prints the original 2" × 4" tscircuit labels on AveneMark sheets, the same as the kit line. FNSKU sheets come from Seller Central.
 4. **Bagging bench (where QC used to be).** For each unit:
    1. Take a 2" × 3" pink pouch from its box, drop in the 4 long M3 screws side by side, zip it, and fold it in half over the screws.
@@ -86,7 +86,7 @@ Amazon ended its own US prep and labelling services for shipments created from J
    4. Zip the bag and lay it flat, front up.
    5. Put the original tscircuit 2" × 4" label on the front, just under the zip. Turn the bag over and put the FNSKU label on the back, above the caution sticker. Labels go on flat, which is easier by hand.
    6. Lay the bag in the tote.
-5. **Ship-ready bench.** Stand the 30 bags in the 10 × 8 × 6 carton, put the FBA box ID label on the side, fold the flaps, tape the seam, and set the carton by the door.
+5. **Ship-ready bench.** Stand the 25 bags in the 10 × 8 × 6 carton, then fold the flaps and tape the seam. Walk to the label printer for the 4 × 6 FBA box ID, put it sideways on the front (the carton is only 6" tall), and set the carton by the door.
 
 ## Sources
 

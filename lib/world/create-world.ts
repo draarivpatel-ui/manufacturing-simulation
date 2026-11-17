@@ -18,6 +18,7 @@ import {
   populatePlate,
 } from "lib/models/bambu-printer"
 import { createBoardTray } from "lib/models/board-tray"
+import { createCartonLabel } from "lib/models/carton-label"
 import { createCoiledJstCable } from "lib/models/coiled-jst-cable"
 import {
   COILED_USB_CABLE,
@@ -70,7 +71,6 @@ import {
   SPACER_TUB,
 } from "lib/models/spacer-basket"
 import { createStandingDesk } from "lib/models/standing-desk"
-import { createSticker } from "lib/models/sticker"
 import {
   createGanChargingStation,
   createUsbCharger,
@@ -89,7 +89,6 @@ import {
   createStandardMaterial,
 } from "lib/scene/primitives"
 import { BLACK_PLASTIC_MATERIAL } from "lib/scene/shared-materials"
-import { METERS_PER_INCH } from "lib/units"
 import {
   ASSEMBLY_BENCH_SPOTS,
   BAG_LYING_QUATERNION,
@@ -104,7 +103,7 @@ import {
   SCREWDRIVER_REST_QUATERNION,
   SHIP_READY_BENCH_SPOTS,
 } from "lib/world/bench-spots"
-import { Group, Matrix4, type Object3D, Vector3 } from "three"
+import { Group, type Object3D, Vector3 } from "three"
 
 /** Pre-crimped JST-PH cable between the motor and the PCB. */
 export interface MotorCable {
@@ -196,8 +195,6 @@ export interface ManufacturingWorld {
   labelSheets: LabelSheet[]
   /** Bare-unit line: Amazon FNSKU label sheets at the bagging bench, top first. */
   fnskuSheets: LabelSheet[]
-  /** Bare-unit line: the FBA box ID label, put on the carton's side before sealing. */
-  boxIdLabel: Group | null
   /** Where the printers' spacers are poured: the assembly bench, or the bagging bench on the bare-unit line. */
   spacerHome: {
     station: Station
@@ -209,6 +206,7 @@ export interface ManufacturingWorld {
   testMotorCable: MotorCable | null
   packingTote: PackingTote
   carton: ShippingCarton
+  cartonLabel: ReturnType<typeof createCartonLabel>
   printers: BambuPrinter[]
   /** Empty tubs on the printer bench; the last one is used next. */
   emptyTubs: Group[]
@@ -704,29 +702,6 @@ function setUpBareUnitBenches(params: {
   return { untested, passed }
 }
 
-/** Bare-unit line: 4" x 6" FBA box ID label waiting (unseen) on the carton's long side. */
-function addBoxIdLabel(carton: ShippingCarton): Group {
-  const spec = BAG_SHIPPING_CARTON
-  const outerWidthM = spec.innerWidthM + 2 * spec.boardThicknessM
-  const label = createSticker({
-    widthM: 4 * METERS_PER_INCH,
-    lengthM: 6 * METERS_PER_INCH,
-    artwork: "fba_box",
-  })
-  label.position.set(0, spec.innerHeightM * 0.5, outerWidthM / 2 + 0.0004)
-  // Printed face out of the side (+Z), the 6" side running along the carton.
-  label.quaternion.setFromRotationMatrix(
-    new Matrix4().makeBasis(
-      new Vector3(0, 1, 0),
-      new Vector3(0, 0, 1),
-      new Vector3(1, 0, 0),
-    ),
-  )
-  label.visible = false
-  carton.group.add(label)
-  return label
-}
-
 const BAGS_IN_TRAY = BATCH_SIZE + 6
 const FNSKU_SHEET_COUNT = 2
 
@@ -903,9 +878,11 @@ export function createWorld(
     tables.ship_ready_bench,
     isBagged ? BAG_SHIPPING_CARTON : SHIPPING_CARTON,
   )
-  const boxIdLabel = isBagged ? addBoxIdLabel(carton) : null
   const printerBench = populatePrinterBench(tables.printer_bench)
   const labelPrinter = populateLabelBench(tables.label_bench)
+  const cartonLabel = createCartonLabel()
+  cartonLabel.group.visible = false
+  labelPrinter.group.add(cartonLabel.group)
   const units: AssemblyUnit[] = []
   for (let unitIndex = 0; unitIndex < BATCH_SIZE; unitIndex++) {
     units.push({
@@ -969,9 +946,9 @@ export function createWorld(
     fnskuSheets: packOutBench.fnskuSheets,
     testMotor: testFixture?.motor ?? null,
     testMotorCable: testFixture?.cable ?? null,
-    boxIdLabel,
     packingTote: packOutBench.packingTote,
     carton,
+    cartonLabel,
     printers: printerBench.printers,
     emptyTubs: printerBench.emptyTubs,
     usedTubs: [],

@@ -21,6 +21,7 @@ import {
   putBackLooseScrewdriver,
 } from "lib/job/screwdriver-motions"
 import {
+  BATCH_SIZE,
   getLayoutPlacements,
   TABLE_PLACEMENTS,
   type TableId,
@@ -158,8 +159,8 @@ function getOneAtATimeAssemblyActions(
   }
   if (!canAssembleAnother(ctx)) {
     actions.blockedReason = isBareUnit
-      ? "All 30 boards are tested: carry the passed tray to bagging (R)"
-      : "All 30 motors are built: take the rack to QC from the rack circle"
+      ? `All ${BATCH_SIZE} boards are tested: carry the passed tray to bagging (R)`
+      : `All ${BATCH_SIZE} motors are built: take the rack to QC from the rack circle`
     return actions
   }
   actions.benchAction = {
