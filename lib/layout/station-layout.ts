@@ -191,13 +191,3 @@ export const OUTBOUND_SPOT = {
 }
 
 export const OPERATOR_START = { xM: 2.9, zM: 1.2, ccwYawRadians: -0.6 }
-
-/** Loop the operator walks in the "Walk the floor" scenario. */
-export const PATROL_ROUTE = [
-  { x: 1.5, z: 1.6 },
-  { x: 1.5, z: 6.0 },
-  { x: 1.5, z: 8.6 },
-  { x: 3.6, z: 12.6 },
-  { x: 3.8, z: 7.0 },
-  { x: 2.9, z: 1.3 },
-]

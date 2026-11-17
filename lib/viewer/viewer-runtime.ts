@@ -314,9 +314,8 @@ export class ViewerRuntime {
     this.simulation.reset()
     this.closeUpStationKey = null
     this.setCameraMode("follow")
-    if (this.simulation.ctx.mode === "simulation")
-      this.simulation.startScenario("walk_floor")
-    else this.simulation.setMode("game")
+    if (this.simulation.ctx.mode !== "simulation")
+      this.simulation.setMode("game")
     this.emitHud()
   }
 
@@ -560,12 +559,15 @@ export class ViewerRuntime {
       const stationKey = `${hint.station.tableId}:${hint.view.azimuthRadians}`
       if (this.closeUpStationKey !== stationKey) {
         this.closeUpStationKey = stationKey
-        this.cameraRig.ccwYawRadians =
-          getStationStandPose(hint.station, this.simulation.ctx.tableLayout)
-            .ccwYawRadians +
-          Math.PI +
-          hint.view.azimuthRadians
-        this.cameraRig.pitchRadians = hint.view.elevationRadians
+        // Turn to the new angle over a moment instead of cutting to it.
+        this.cameraRig.aimAt({
+          ccwYawRadians:
+            getStationStandPose(hint.station, this.simulation.ctx.tableLayout)
+              .ccwYawRadians +
+            Math.PI +
+            hint.view.azimuthRadians,
+          pitchRadians: hint.view.elevationRadians,
+        })
       }
       this.cameraRig.setMode({
         mode: "close_up",

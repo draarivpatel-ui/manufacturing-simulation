@@ -36,11 +36,9 @@ import {
 import {
   collectLabelsScenario,
   engraveBoxesScenario,
-  pickUpScrewdriverScenario,
   refillSpacersScenario,
   runBatchScenario,
   type ScenarioId,
-  walkFloorScenario,
 } from "lib/simulation/scenarios"
 import type {
   JobProgress,
@@ -247,16 +245,6 @@ export class ManufacturingSimulation {
 
   startScenario(scenarioId: ScenarioId): void {
     const { progress } = this.ctx
-    if (scenarioId === "walk_floor") {
-      this.reset()
-      this.startTask(walkFloorScenario(this.ctx))
-      return
-    }
-    if (scenarioId === "pick_up_screwdriver") {
-      this.reset()
-      this.startTask(pickUpScrewdriverScenario(this.ctx))
-      return
-    }
     if (
       this.activeTask &&
       progress.isJobActive &&

@@ -5,7 +5,6 @@ export { FLOOR_PLAN } from "lib/layout/floor-plan"
 export {
   BATCH_SIZE,
   OPERATOR_START,
-  PATROL_ROUTE,
   STATIONS,
   type Station,
   TABLE_PLACEMENTS,

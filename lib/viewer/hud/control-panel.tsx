@@ -100,18 +100,6 @@ export function ControlPanel(props: {
             <span className="eyebrow">Scenario</span>
             <button
               type="button"
-              onClick={() => props.onScenarioStart("walk_floor")}
-            >
-              Walk the floor
-            </button>
-            <button
-              type="button"
-              onClick={() => props.onScenarioStart("pick_up_screwdriver")}
-            >
-              Pick up the screwdriver
-            </button>
-            <button
-              type="button"
               onClick={() => props.onScenarioStart("run_batch")}
             >
               {props.jobUnitCount === 1

@@ -6,40 +6,14 @@ import {
   getFinishedPrinters,
   refillSpacerBasket,
 } from "lib/job/printer-steps"
-import { pickUpLooseScrewdriver } from "lib/job/screwdriver-motions"
-import { PATROL_ROUTE, STATIONS } from "lib/layout/station-layout"
 import type { SimContext } from "lib/simulation/sim-context"
-import { type SimTask, waitSeconds } from "lib/tasks/coroutines"
-import { walkTo, walkToStation } from "lib/tasks/operator-motions"
+import type { SimTask } from "lib/tasks/coroutines"
 
 export type ScenarioId =
-  | "walk_floor"
-  | "pick_up_screwdriver"
   | "run_batch"
   | "refill_spacers"
   | "collect_labels"
   | "engrave_boxes"
-
-const PATROL_PAUSE_SECONDS = 0.5
-
-/** Walk the patrol loop forever. */
-export function* walkFloorScenario(ctx: SimContext): SimTask {
-  ctx.statusText = "Walking the floor"
-  for (
-    let waypointIndex = 0;
-    ;
-    waypointIndex = (waypointIndex + 1) % PATROL_ROUTE.length
-  ) {
-    yield* walkTo(PATROL_ROUTE[waypointIndex], ctx)
-    yield* waitSeconds(PATROL_PAUSE_SECONDS)
-  }
-}
-
-export function* pickUpScrewdriverScenario(ctx: SimContext): SimTask {
-  ctx.statusText = "Walking to the assembly bench"
-  yield* walkToStation(STATIONS.assembly, ctx)
-  yield* pickUpLooseScrewdriver(ctx)
-}
 
 /** Run the line from wherever it is now, bench by bench, until the carton ships. */
 export function* runBatchScenario(ctx: SimContext): SimTask {
