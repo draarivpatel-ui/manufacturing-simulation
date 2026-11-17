@@ -99,6 +99,8 @@ export const BAG_LYING_QUATERNION = new Quaternion().setFromEuler(
 export const SHIP_READY_BENCH_SPOTS = {
   carton: new Vector3(0, TOP, 0),
   cartonLabelRest: new Vector3(-0.27, TOP, 0.285),
+  /** The carrier label waits beside the box ID label until it goes on. */
+  carrierLabelRest: new Vector3(-0.14, TOP, 0.285),
   incomingTote: new Vector3(0.56, TOP, 0.1),
 }
 

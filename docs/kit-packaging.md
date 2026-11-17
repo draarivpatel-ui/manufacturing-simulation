@@ -22,7 +22,10 @@ Still to confirm for the real shipment:
 | Requirement | What the line does |
 | --- | --- |
 | FBA box ID label on a flat side, away from seams, unique per box | Printed at the label bench and applied to the front after sealing (a sample in the sim; print the real one on a laser or thermal printer). |
-| Carrier label, not covering the box ID | Not modelled yet. |
+| Carrier label, not covering the box ID | A 4 × 6" DHL label printed after the box ID and put beside it on the front, about 1.2" apart and 2.5" from the edges. The bare-unit carton is too small for both on one face, so its carrier label goes on the back. |
+| Carrier reference | Put the FBA shipment ID in the carrier's reference field, so the fulfillment center can match the box to the shipment. The sample label shows where it goes. |
+| Team Lift labels | Only over 50 lb. Not needed at 33 lb. |
+| Country of origin on the carton | Not needed for a domestic inbound shipment; the units carry it on their bases. Needed if the carton itself is imported. |
 | Max 50 lb; sides within Amazon's limits; 200 lb burst or 32 ECT board | 33 lb, all sides under 25". |
 | Void fill: kraft paper, bubble wrap, air pillows or PE foam sheets; no peanuts or shredded paper | Not modelled yet: 25 boxes leave 5 of the 30 places empty. |
 

@@ -32,7 +32,7 @@ simulation.ctx.progress.cycleSeconds // total including walking
   1. **Assembly bench:** a foam stand of 25 NEMA17 motors, the spacer basket, three stacks of RP2040 motor controller boards, a SKIL Twist 2.0 4V screwdriver ([Ace 2033885](https://www.acehardware.com/p/2033885)) held by its grip with the bit on the screw while the other hand braces the side of the motor, clear of the screws, a jig, an empty 25-slot rack, and three Akro-Mils 30210 AkroBins: long M3 screws (blue tag), used stock screws (red tag) and pre-crimped JST-PH 2.0 motor cables, 6-pin at the motor and PHR-4 at the board (yellow tag). Everything is within reach of one standing spot. Each unit: load the motor, swap the 4 stock screws (too short once the 4 mm spacer and PCB are added) for long ones through a spacer and the PCB, plug in a cable, and rack it. The rack goes to QC when all 25 are done, or earlier with R.
   2. **QC bench:** each unit goes into a cradle with two USB-C cables (laptop data and the 10-port GaN charging station for power), spins, and moves to a second rack, which is carried to pack-out.
   3. **Pack-out bench:** each unit takes the next engraved 7×4×3" white mailer off the stack. A MUNBYN thermal printer prints its 2×1" UPC-A sticker (884400898623), and the operator tips the box onto its back and sticks it on a corner of the base, clear of the edges, at the other end from the engraved "Made in China". Then the box gets pink anti-static foam, the motor, 2 coiled USB-C cables, a 45 W charger and the 2×4" tscircuit label from the AveneMark sheets, and goes into a tote that is carried to Ship-ready.
-  4. **Ship-ready bench:** all 25 boxes go into the Amazon carton. The operator folds the flaps and tapes the seam, then walks to the existing label bench to print a 4×6" sample FBA Box ID label. The operator carries the label back to Ship-ready, sets it on the table, and applies it to the flat front face before carrying the carton to the door.
+  4. **Ship-ready bench:** all 25 boxes go into the Amazon carton. The operator folds the flaps and tapes the seam, then walks to the label bench to print two 4×6" sample labels: the FBA Box ID and the DHL carrier label. The operator carries both back to Ship-ready, sets them on the table, and puts them side by side on the flat front face, the carrier label clear of the box ID, before carrying the carton to the door.
 - **East wall:**
   - **3D printers:** a Bambu Lab P2S (25 spacers per plate) and an H2S (49 per plate). Finished plates are emptied into a tub, carried to the assembly bench, and poured into the spacer basket; then the next print starts.
   - **Label printer:** an Epson EcoTank ET-2400 that prints an AveneMark sheet (10 labels) every 45 s, up to 6 in its tray. Collecting them carries the sheets to the top of the pack-out stack.
@@ -51,7 +51,7 @@ simulation.ctx.progress.cycleSeconds // total including walking
   2. Hold an Ellbest 80 × 120 mm shielding zip bag open by hand (no bag holder). It has a yellow ESD caution sticker on the back.
   3. Put in the spacer, the board on top of it, a coiled cable and the screw pouch (two piles side by side), then zip.
   4. Lay the bag flat: tscircuit label on the front, turn it over, FNSKU label on the back, then into the tote.
-- **Ship-ready:** 25 bags stand upright in a 10 × 8 × 6 in carton (about 2 lb). The carton is sealed, and the same 4 × 6 FBA box ID as the kit line is printed and put on sideways, since the carton is only 6" tall.
+- **Ship-ready:** 25 bags stand upright in a 10 × 8 × 6 in carton (about 2 lb). The carton is sealed, and the same 4 × 6 FBA box ID and DHL carrier labels as the kit line are printed. Both go on sideways, since the carton is only 6" tall: the box ID on the front, the carrier label on the back, because the 10" face can't take both.
 
 In Cosmos, pick "bare-unit-bagging". In the vite dev server, add `?line=bagged`. The bag-size math, the bags to buy, and the Amazon packaging and labelling rules are in [docs/bare-unit-packaging.md](docs/bare-unit-packaging.md).
 
@@ -59,7 +59,7 @@ In Cosmos, pick "bare-unit-bagging". In the vite dev server, add `?line=bagged`.
 
 The packed mailer is about 7.25 × 4.25 × 3.1 in. The modeled **15 × 13 × 17 in (inside) carton** fits a 2 × 3 × 5 stack, leaving five positions empty for this batch. At roughly 0.56 kg per packed unit, the 25 units weigh about 14 kg (31 lb) before adding the carton and void fill. Weigh and measure the packed carton before shipping.
 
-For real shipments, print the shipment-specific Box ID from **Send to Amazon → Print box labels** using a laser or thermal printer. The Epson prints the sample in the simulation. [Amazon shipping label requirements](https://sellercentral.amazon.com/help/hub/reference/external/G200178470)
+For real shipments, print the shipment-specific Box ID from **Send to Amazon → Print box labels**, and the carrier label from DHL with the FBA shipment ID as its reference, on a laser or 4×6 thermal printer. The Epson prints both samples in the simulation. [Amazon shipping label requirements](https://sellercentral.amazon.com/help/hub/reference/external/G200178470)
 
 ### Printer estimates
 

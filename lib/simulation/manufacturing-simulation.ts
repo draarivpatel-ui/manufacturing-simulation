@@ -525,12 +525,13 @@ export class ManufacturingSimulation {
     const { ctx } = this
     advancePrinters({ dtSeconds, populate: populatePlate }, ctx)
     advanceUvLaser({ dtSeconds }, ctx)
-    const { labelPrinter, cartonLabel } = ctx.world
-    if (
-      cartonLabel.group.visible &&
-      cartonLabel.group.parent === labelPrinter.group
+    const { labelPrinter, cartonLabel, carrierLabel } = ctx.world
+    // The carton labels hold the printer while they're being printed.
+    const isPrintingCartonLabels = [cartonLabel, carrierLabel].some(
+      (label) =>
+        label.group.visible && label.group.parent === labelPrinter.group,
     )
-      return
+    if (isPrintingCartonLabels) return
     labelPrinter.secondsSinceLastSheet += dtSeconds
     if (labelPrinter.secondsSinceLastSheet < LABEL_SHEET_PRINT_SECONDS) return
     labelPrinter.secondsSinceLastSheet = 0

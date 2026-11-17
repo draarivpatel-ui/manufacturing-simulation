@@ -149,6 +149,8 @@ test(
     // The FBA box ID from the label printer, on the front of the carton.
     expect(world.cartonLabel.group.visible).toBe(true)
     expect(world.cartonLabel.group.parent).toBe(world.carton.group)
+    expect(world.carrierLabel.group.visible).toBe(true)
+    expect(world.carrierLabel.group.parent).toBe(world.carton.group)
     expect(world.cartonLabel.group.position.y).toBeLessThan(
       BAG_SHIPPING_CARTON.innerHeightM,
     )

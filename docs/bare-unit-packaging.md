@@ -64,7 +64,7 @@ Amazon ended its own US prep and labelling services for shipments created from J
 | **Size** | No side over 25". | 10 × 8 × 6 in inside. |
 | **Weight** | 50 lb standard. Over 50 lb needs "Team Lift" labels on the top and sides. | A bagged unit is about 23 g: board 8, spacer 2.6, screws 4.4, cable 5, bags 3.5. 25 of them plus the carton ≈ 1.8 lb. |
 | **Packing** | Bags shouldn't move, and loose fill such as packing peanuts or shredded paper isn't allowed. | 25 bags standing on edge, 3 along by up to 10 across (30 places). Fill the gaps at the side with a sheet of kraft paper. |
-| **Box ID label** | Every carton gets its own FBA box ID label from the shipment in Seller Central. Never reuse one. Put it on a flat side, not across a seam, and don't cover it with the carrier label. | 4" × 6" label on a long side, applied before sealing. |
+| **Box ID label** | Every carton gets its own FBA box ID label from the shipment in Seller Central. Never reuse one. Put it on a flat side, not across a seam, and don't cover it with the carrier label. | 4" × 6" label on the front long side, sideways, applied after sealing. The 4" × 6" DHL carrier label goes on the back long side, so it can't cover the box ID. |
 | **Box contents** | Enter the SKU and quantity for each box in Seller Central. Wrong contents can bring fees or blocked shipments. | One SKU, 25 units per box. |
 | **Old markings** | Remove or cover any old labels or barcodes on a reused box. | New cartons only. |
 
@@ -86,7 +86,7 @@ Amazon ended its own US prep and labelling services for shipments created from J
    4. Zip the bag and lay it flat, front up.
    5. Put the original tscircuit 2" × 4" label on the front, just under the zip. Turn the bag over and put the FNSKU label on the back, above the caution sticker. Labels go on flat, which is easier by hand.
    6. Lay the bag in the tote.
-5. **Ship-ready bench.** Stand the 25 bags in the 10 × 8 × 6 carton, then fold the flaps and tape the seam. Walk to the label printer for the 4 × 6 FBA box ID, put it sideways on the front (the carton is only 6" tall), and set the carton by the door.
+5. **Ship-ready bench.** Stand the 25 bags in the 10 × 8 × 6 carton, then fold the flaps and tape the seam. Walk to the label printer for the 4 × 6 FBA box ID and the 4 × 6 DHL carrier label. Put the box ID sideways on the front and the carrier label sideways on the back (the carton is only 6" tall), then set the carton by the door.
 
 ## Sources
 

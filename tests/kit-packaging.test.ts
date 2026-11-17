@@ -1,6 +1,12 @@
 import { expect, test } from "bun:test"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import { BATCH_SIZE, STATIONS } from "lib/layout/station-layout"
+import { CARTON_LABEL } from "lib/models/carton-label"
+import {
+  BAG_SHIPPING_CARTON,
+  createShippingCarton,
+  SHIPPING_CARTON,
+} from "lib/models/shipping-carton"
 import { LASER_BOXES_PER_RUN } from "lib/models/uv-laser"
 import { isBoxEngraved } from "lib/models/white-mailer-box"
 import { ManufacturingSimulation } from "lib/simulation/manufacturing-simulation"
@@ -112,6 +118,35 @@ test(
     }
     const laser = world.uvLaser
     expect(laser?.blankBoxes).toHaveLength(0)
+    // Both carton labels on the sealed carton, the carrier label clear of the box ID.
+    for (const label of [world.cartonLabel, world.carrierLabel]) {
+      expect(label.group.visible).toBe(true)
+      expect(label.group.parent).toBe(world.carton.group)
+    }
+    expect(
+      world.carrierLabel.group.position.distanceTo(
+        world.cartonLabel.group.position,
+      ),
+    ).toBeGreaterThan(CARTON_LABEL.widthM)
   },
   { timeout: 180_000 },
 )
+
+test("each carton has room for the box ID and the carrier label without overlap", () => {
+  for (const spec of [SHIPPING_CARTON, BAG_SHIPPING_CARTON]) {
+    const carton = createShippingCarton(spec)
+    const boxId = carton.boxIdLabelSpot.position
+    const carrier = carton.carrierLabelSpot.position
+    const isSameFace = Math.sign(boxId.z) === Math.sign(carrier.z)
+    if (isSameFace)
+      expect(Math.abs(boxId.x - carrier.x)).toBeGreaterThan(CARTON_LABEL.widthM)
+    // Both sit on a side face, below the top seam.
+    for (const spot of [boxId, carrier])
+      expect(spot.y + CARTON_LABEL.widthM / 2).toBeLessThan(spec.innerHeightM)
+  }
+  // The kit carton takes both on the front; the short bag carton puts the carrier label on the back.
+  const kit = createShippingCarton(SHIPPING_CARTON)
+  expect(kit.carrierLabelSpot.position.z).toBeGreaterThan(0)
+  const bag = createShippingCarton(BAG_SHIPPING_CARTON)
+  expect(bag.carrierLabelSpot.position.z).toBeLessThan(0)
+})

@@ -31,7 +31,10 @@ import {
   createBagLabelTextures,
   createOriginEngravingTexture,
 } from "lib/viewer/create-bag-label-textures"
-import { createCartonLabelTexture } from "lib/viewer/create-carton-label-texture"
+import {
+  createCarrierLabelTexture,
+  createCartonLabelTexture,
+} from "lib/viewer/create-carton-label-texture"
 import { createFloorTexture } from "lib/viewer/create-floor-texture"
 import { createLabelSprite } from "lib/viewer/create-label-sprite"
 import { createQcScreenTexture } from "lib/viewer/create-qc-screen-texture"
@@ -48,6 +51,7 @@ import {
 } from "lib/viewer/station-ring"
 import type { ManufacturingWorld } from "lib/world/create-world"
 import {
+  type CanvasTexture,
   Color,
   Mesh,
   MeshBasicMaterial,
@@ -153,6 +157,8 @@ export class ViewerRuntime {
   private readonly bagLabelTextures = createBagLabelTextures()
   private readonly originEngravingTexture = createOriginEngravingTexture()
   private readonly cartonLabelTexture = createCartonLabelTexture()
+  /** Carrier label textures by carton weight, made as each line needs one. */
+  private carrierLabelTexture: CanvasTexture | null = null
   private readonly qcScreenTextures: Record<QcDisplayState, Texture> = {
     idle: createQcScreenTexture("idle"),
     testing: createQcScreenTexture("testing"),
@@ -254,6 +260,7 @@ export class ViewerRuntime {
     for (const texture of Object.values(this.bagLabelTextures))
       texture.dispose()
     this.cartonLabelTexture.dispose()
+    this.carrierLabelTexture?.dispose()
     for (const texture of Object.values(this.qcScreenTextures))
       texture.dispose()
     this.renderer.dispose()
@@ -438,6 +445,13 @@ export class ViewerRuntime {
       this.decoratedWorld = world
       world.cartonLabel.face.material.map = this.cartonLabelTexture
       world.cartonLabel.face.material.needsUpdate = true
+      this.carrierLabelTexture?.dispose()
+      // About 33 lb for 25 kits, about 2 lb for 25 bare units.
+      this.carrierLabelTexture = createCarrierLabelTexture({
+        weightLb: world.productLine === "bagged" ? 2 : 33,
+      })
+      world.carrierLabel.face.material.map = this.carrierLabelTexture
+      world.carrierLabel.face.material.needsUpdate = true
       this.shownQcDisplayState = null
       this.texturedLabelSheetCount = -1
       this.printerSigns = []
