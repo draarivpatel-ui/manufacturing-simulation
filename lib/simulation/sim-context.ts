@@ -1,4 +1,5 @@
-import type { Station } from "lib/layout/station-layout"
+import type { JobPlan } from "lib/job/job-plan"
+import type { Station, TableLayout } from "lib/layout/station-layout"
 import type { NavGrid } from "lib/navigation/nav-grid"
 import type { Operator } from "lib/operator/create-operator"
 import type { SoundCue } from "lib/simulation/sound-cues"
@@ -65,6 +66,10 @@ export interface SimContext {
   mode: SimulationMode
   statusText: string
   cameraHint: CameraHint | null
+  /** The product this line makes and the work to make it. */
+  jobPlan: JobPlan
+  /** Which benches are on the floor, and where. */
+  tableLayout: TableLayout
   /** Sounds asked for since the viewer last drained them. */
   soundCues: SoundCue[]
 }

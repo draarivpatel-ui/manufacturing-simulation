@@ -1,3 +1,4 @@
+import type { ProductLine } from "lib/job/job-plan"
 import {
   BATCH_SIZE,
   TABLE_PLACEMENTS,
@@ -8,6 +9,12 @@ import type { ScenarioId } from "lib/simulation/scenarios"
 import type { SimulationMode } from "lib/simulation/sim-context"
 import type { ReactNode, Ref } from "react"
 
+const BARE_UNIT_START_LABELS: Record<LineStartId, string> = {
+  assembly: "QC: boards in the untested tray",
+  qc: "QC: boards in the untested tray",
+  pack_out: "Bagging: passed boards in the tray",
+  ship_ready: "Ship-ready: bagged, in the tote",
+}
 const SPEED_OPTIONS = [0.5, 1, 2, 4, 8, 16]
 const LINE_START_IDS: LineStartId[] = [
   "assembly",
@@ -19,6 +26,7 @@ const LINE_START_IDS: LineStartId[] = [
 export function ControlPanel(props: {
   detailsRef: Ref<HTMLDetailsElement>
   mode: SimulationMode
+  productLine: ProductLine
   jobUnitCount: number
   onJobUnitCountChange: (unitCount: number) => void
   isPaused: boolean
@@ -43,7 +51,9 @@ export function ControlPanel(props: {
           <span>
             <span className="eyebrow">2325 · Unit 322</span>
             <br />
-            Line simulation
+            {props.productLine === "bagged"
+              ? "Bare unit, bagged"
+              : "Line simulation"}
           </span>
         </summary>
         <div className="body">
@@ -137,9 +147,15 @@ export function ControlPanel(props: {
               <option value="" disabled>
                 Choose a bench…
               </option>
-              {LINE_START_IDS.map((startId) => (
+              {LINE_START_IDS.filter(
+                // The bare-unit line has no assembly bench.
+                (startId) =>
+                  props.productLine !== "bagged" || startId !== "assembly",
+              ).map((startId) => (
                 <option key={startId} value={startId}>
-                  {LINE_STARTS[startId].label}
+                  {props.productLine === "bagged"
+                    ? BARE_UNIT_START_LABELS[startId]
+                    : LINE_STARTS[startId].label}
                 </option>
               ))}
             </select>
@@ -191,8 +207,10 @@ export function ControlPanel(props: {
             <dd>18′3½″ × 47′5¼″</dd>
             <dt>Tables</dt>
             <dd>
-              {Object.keys(TABLE_PLACEMENTS).length} × 6′ standing desks,{" "}
-              {tableHeightInches}″ high
+              {props.productLine === "bagged"
+                ? 5
+                : Object.keys(TABLE_PLACEMENTS).length}{" "}
+              × 6′ standing desks, {tableHeightInches}″ high
             </dd>
           </dl>
         </div>

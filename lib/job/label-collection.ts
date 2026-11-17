@@ -17,7 +17,7 @@ export function printLabelSheet(ctx: SimContext): boolean {
   const { labelPrinter } = ctx.world
   if (labelPrinter.printedSheets.length >= MAX_PRINTED_LABEL_SHEETS)
     return false
-  const sheet = createLabelSheet()
+  const sheet = createLabelSheet(LABEL_SHEET)
   // Peel the front row first.
   sheet.labels.reverse()
   sheet.group.position.y = labelPrinter.printedSheets.length * SHEET_THICKNESS_M

@@ -1,10 +1,11 @@
 import { countUnitsByStage, getNextLineWork } from "lib/job/bench-work"
-import { JOB_ROWS } from "lib/job/job-plan"
+import type { ProductLine } from "lib/job/job-plan"
 import { countLabelsAtPackOut } from "lib/job/label-stock"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import { TABLE_PLACEMENTS, type TableId } from "lib/layout/station-layout"
 import { BAMBU_PRINTERS, type BambuPrinter } from "lib/models/bambu-printer"
 import type { QcDisplayState } from "lib/models/qc-laptop"
+import type { StickerArtwork } from "lib/models/sticker"
 import { getPinchWorldPosition } from "lib/operator/hand-pose"
 import {
   ASSEMBLY_PAD_RADIUS_M,
@@ -24,6 +25,7 @@ import type { ScenarioId } from "lib/simulation/scenarios"
 import type { CameraHint, SimulationMode } from "lib/simulation/sim-context"
 import { addSceneLighting } from "lib/viewer/add-scene-lighting"
 import { type CameraMode, CameraRig } from "lib/viewer/camera-rig"
+import { createBagLabelTextures } from "lib/viewer/create-bag-label-textures"
 import { createCartonLabelTexture } from "lib/viewer/create-carton-label-texture"
 import { createFloorTexture } from "lib/viewer/create-floor-texture"
 import { createLabelSprite } from "lib/viewer/create-label-sprite"
@@ -114,7 +116,7 @@ function readThemeToken(params: {
  * The React component creates one on mount and disposes it on unmount.
  */
 export class ViewerRuntime {
-  readonly simulation = new ManufacturingSimulation()
+  readonly simulation: ManufacturingSimulation
   private readonly renderer: WebGLRenderer
   private readonly camera = new PerspectiveCamera(42, 1, 0.02, 80)
   private readonly cameraRig = new CameraRig(this.camera)
@@ -142,6 +144,8 @@ export class ViewerRuntime {
   private floorTexture: Texture | null = null
   /** The approved NEMA17 label artwork from tscircuit/product-packaging. */
   private readonly stickerTexture = loadLabelTexture()
+  /** The bare-unit line's bag sticker, FNSKU and FBA box labels. */
+  private readonly bagLabelTextures = createBagLabelTextures()
   private readonly cartonLabelTexture = createCartonLabelTexture()
   private readonly qcScreenTextures: Record<QcDisplayState, Texture> = {
     idle: createQcScreenTexture("idle"),
@@ -169,8 +173,13 @@ export class ViewerRuntime {
       canvas: HTMLCanvasElement
       themeElement: HTMLElement
       onHudChange: (hud: HudSnapshot) => void
+      /** The full kit line (default) or the bare-unit bag line. */
+      productLine?: ProductLine
     },
   ) {
+    this.simulation = new ManufacturingSimulation({
+      productLine: options.productLine,
+    })
     const { canvas } = options
     this.renderer = new WebGLRenderer({ canvas, antialias: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
@@ -180,7 +189,10 @@ export class ViewerRuntime {
     addSceneLighting(scene)
     scene.add(this.stationRing)
     for (const { pad, mesh } of [...this.equipmentPads, ...this.assemblyPads]) {
-      const pose = getStationStandPose(pad.station)
+      const pose = getStationStandPose(
+        pad.station,
+        this.simulation.ctx.tableLayout,
+      )
       mesh.position.set(pose.x, 0.011, pose.z)
       scene.add(mesh)
     }
@@ -232,6 +244,8 @@ export class ViewerRuntime {
     window.removeEventListener("blur", this.clearKeys)
     this.floorTexture?.dispose()
     this.stickerTexture.dispose()
+    for (const texture of Object.values(this.bagLabelTextures))
+      texture.dispose()
     this.cartonLabelTexture.dispose()
     for (const texture of Object.values(this.qcScreenTextures))
       texture.dispose()
@@ -417,7 +431,9 @@ export class ViewerRuntime {
       this.printerSigns = []
       this.stationSigns = []
       for (const tableId of Object.keys(world.tables) as TableId[]) {
-        const placement = TABLE_PLACEMENTS[tableId]
+        // The line's own layout: the bare-unit line numbers its benches from QC.
+        const placement = this.simulation.ctx.tableLayout[tableId]
+        if (!placement) continue
         const text =
           placement.lineOrder > 0
             ? `${placement.lineOrder} · ${placement.label}`
@@ -436,8 +452,14 @@ export class ViewerRuntime {
       world.root.traverse((object) => {
         if (!(object instanceof Mesh) || !object.userData.isStickerFace) return
         const material = object.material as MeshStandardMaterial
-        if (material.map === this.stickerTexture) return
-        material.map = this.stickerTexture
+        const artwork: StickerArtwork =
+          object.userData.stickerArtwork ?? "kit_label"
+        const texture =
+          artwork === "kit_label"
+            ? this.stickerTexture
+            : this.bagLabelTextures[artwork]
+        if (material.map === texture) return
+        material.map = texture
         material.color.set(0xffffff)
         material.needsUpdate = true
       })
@@ -503,7 +525,8 @@ export class ViewerRuntime {
       if (this.closeUpStationKey !== stationKey) {
         this.closeUpStationKey = stationKey
         this.cameraRig.ccwYawRadians =
-          getStationStandPose(hint.station).ccwYawRadians +
+          getStationStandPose(hint.station, this.simulation.ctx.tableLayout)
+            .ccwYawRadians +
           Math.PI +
           hint.view.azimuthRadians
         this.cameraRig.pitchRadians = hint.view.elevationRadians
@@ -546,7 +569,10 @@ export class ViewerRuntime {
       (mode === "game" || progress.isJobActive)
     this.stationRing.visible = Boolean(isVisible)
     if (!nextStep || !isVisible) return
-    const pose = getStationStandPose(nextStep.station)
+    const pose = getStationStandPose(
+      nextStep.station,
+      this.simulation.ctx.tableLayout,
+    )
     this.stationRing.position.set(pose.x, 0.012, pose.z)
     this.stationRing.material.opacity = 0.55 + 0.3 * Math.sin(nowMs * 0.005)
   }
@@ -557,7 +583,10 @@ export class ViewerRuntime {
     // One at a time: green circle builds a motor, amber circle takes the rack.
     const onAssemblyPad = getAssemblyPadAtOperator(ctx)
     for (const { pad, mesh } of this.assemblyPads) {
-      mesh.visible = ctx.mode === "game" && ctx.progress.isOneAtATime
+      mesh.visible =
+        ctx.mode === "game" &&
+        ctx.progress.isOneAtATime &&
+        Boolean(ctx.tableLayout.assembly_bench)
       if (!mesh.visible) continue
       const color = pad.id === "assemble" ? 0x2fb36b : 0xe39b1b
       mesh.material.color.setHex(color)
@@ -598,7 +627,7 @@ export class ViewerRuntime {
     const { progress } = ctx
     const actions = this.simulation.getGameActions()
     const { activeRowIndex } = progress
-    const steps = JOB_ROWS.map((row) => {
+    const steps = ctx.jobPlan.rows.map((row) => {
       const completedCount = progress.rowCompletedCounts[row.rowIndex]
       return {
         label: row.step.label,
@@ -639,6 +668,7 @@ export class ViewerRuntime {
     if (this.simulation.isTaskPaused) statusText = `Paused: ${statusText}`
     this.options.onHudChange({
       mode: ctx.mode,
+      productLine: ctx.jobPlan.productLine,
       jobUnitCount: progress.unitCount,
       statusText,
       isPaused: this.isPaused,

@@ -1,7 +1,9 @@
+import { CARTON_LABEL } from "lib/models/carton-label"
+import { ESD_BAG } from "lib/models/esd-bag"
 import { WHITE_MAILER_BOX } from "lib/models/white-mailer-box"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
 import { METERS_PER_INCH } from "lib/units"
-import { Group, type Mesh, Object3D } from "three"
+import { Group, type Mesh, Object3D, Quaternion, Vector3 } from "three"
 
 /**
  * Amazon FBA shipping carton. The packed 7x4x3 mailers
@@ -9,6 +11,21 @@ import { Group, type Mesh, Object3D } from "three"
  * 15.6 in block, so a 15 x 13 x 17 in (inside) carton fits them with a little
  * room for void fill. The 25-unit batch leaves five positions open.
  */
+/** A carton's inside size and the grid its items pack into. */
+export interface CartonSpec {
+  innerLengthM: number
+  innerWidthM: number
+  innerHeightM: number
+  boardThicknessM: number
+  /** Items along the length (X), across the width (Z) and stacked up. */
+  columns: number
+  rows: number
+  layers: number
+  itemPitchXM: number
+  itemPitchZM: number
+  itemHeightM: number
+}
+
 export const SHIPPING_CARTON = {
   innerLengthM: 15 * METERS_PER_INCH,
   innerWidthM: 13 * METERS_PER_INCH,
@@ -17,7 +34,29 @@ export const SHIPPING_CARTON = {
   columns: 2,
   rows: 3,
   layers: 5,
-} as const
+  itemPitchXM: WHITE_MAILER_BOX.lengthM + 0.002,
+  itemPitchZM: WHITE_MAILER_BOX.widthM + 0.002,
+  itemHeightM: WHITE_MAILER_BOX.heightM,
+} as const satisfies CartonSpec
+
+/**
+ * FBA carton for bare units in 80 x 120 mm ESD bags, standing on edge 3 along
+ * by 10 across (30 places): 10 x 8 x 6 in inside. About 23 g a bagged unit,
+ * so a batch is about 2 lb packed, far under the FBA 50 lb limit and 25 in
+ * per side.
+ */
+export const BAG_SHIPPING_CARTON = {
+  innerLengthM: 10 * METERS_PER_INCH,
+  innerWidthM: 8 * METERS_PER_INCH,
+  innerHeightM: 6 * METERS_PER_INCH,
+  boardThicknessM: 0.005,
+  columns: 3,
+  rows: 10,
+  layers: 1,
+  itemPitchXM: ESD_BAG.widthM + 0.002,
+  itemPitchZM: ESD_BAG.filledDepthM + 0.002,
+  itemHeightM: ESD_BAG.heightM,
+} as const satisfies CartonSpec
 
 export const SHIPPING_CARTON_CAPACITY =
   SHIPPING_CARTON.columns * SHIPPING_CARTON.rows * SHIPPING_CARTON.layers
@@ -42,15 +81,22 @@ export interface ShippingCarton {
   tapeLengthM: number
   leftGrip: Object3D
   rightGrip: Object3D
+  /**
+   * Where the 4" x 6" FBA box ID label goes on the front face: upright on a
+   * tall carton, turned sideways on one too short for 6".
+   */
+  boxIdLabelSpot: Object3D
 }
 
 /** How far each flap is folded open, in radians. */
 export const CARTON_FLAP_OPEN_RADIANS = 2.2
 
-export function createShippingCarton(): ShippingCarton {
+export function createShippingCarton(
+  spec: CartonSpec = SHIPPING_CARTON,
+): ShippingCarton {
   const group = new Group()
   const board = createStandardMaterial({ color: 0xc49a6c, roughness: 0.95 })
-  const c = SHIPPING_CARTON
+  const c = spec
   const t = c.boardThicknessM
   const lengthM = c.innerLengthM + 2 * t
   const widthM = c.innerWidthM + 2 * t
@@ -165,15 +211,14 @@ export function createShippingCarton(): ShippingCarton {
   }) as [Mesh, Mesh]
 
   const slots: Object3D[] = []
-  const mailer = WHITE_MAILER_BOX
   for (let layer = 0; layer < c.layers; layer++) {
     for (let row = 0; row < c.rows; row++) {
       for (let column = 0; column < c.columns; column++) {
         const slot = new Object3D()
         slot.position.set(
-          (column - (c.columns - 1) / 2) * (mailer.lengthM + 0.002),
-          t + layer * mailer.heightM,
-          (row - (c.rows - 1) / 2) * (mailer.widthM + 0.002),
+          (column - (c.columns - 1) / 2) * c.itemPitchXM,
+          t + layer * c.itemHeightM,
+          (row - (c.rows - 1) / 2) * c.itemPitchZM,
         )
         group.add(slot)
         slots.push(slot)
@@ -185,6 +230,19 @@ export function createShippingCarton(): ShippingCarton {
   const rightGrip = new Object3D()
   rightGrip.position.set(lengthM / 2, heightM * 0.7, 0)
   group.add(leftGrip, rightGrip)
+  const boxIdLabelSpot = new Object3D()
+  // The label's printed face is its local +Y; turned to face out of the front (+Z).
+  boxIdLabelSpot.quaternion.setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
+  const frontZ = c.innerWidthM / 2 + t + 0.0005
+  if (c.innerHeightM >= CARTON_LABEL.lengthM + 0.05) {
+    boxIdLabelSpot.position.set(-0.055, c.innerHeightM * 0.71, frontZ)
+  } else {
+    boxIdLabelSpot.position.set(0, c.innerHeightM * 0.45, frontZ)
+    boxIdLabelSpot.quaternion.multiply(
+      new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2),
+    )
+  }
+  group.add(boxIdLabelSpot)
   return {
     group,
     slots,
@@ -198,5 +256,6 @@ export function createShippingCarton(): ShippingCarton {
     tapeLengthM: lengthM,
     leftGrip,
     rightGrip,
+    boxIdLabelSpot,
   }
 }

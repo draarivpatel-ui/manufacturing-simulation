@@ -1,7 +1,14 @@
+import type { ProductLine } from "lib/job/job-plan"
+import { MOTOR_IN_CRADLE_POSITION } from "lib/job/unit-poses"
 import {
+  BARE_UNIT_TABLE_LAYOUT,
   BATCH_SIZE,
+  KIT_TABLE_LAYOUT,
+  STATIONS,
+  type Station,
   TABLE_PLACEMENTS,
   type TableId,
+  type TablePlacement,
   WORK_TABLE,
 } from "lib/layout/station-layout"
 import { createBackfaceSpacer } from "lib/models/backface-spacer"
@@ -10,6 +17,7 @@ import {
   createBambuPrinter,
   populatePlate,
 } from "lib/models/bambu-printer"
+import { createBoardTray } from "lib/models/board-tray"
 import { createCartonLabel } from "lib/models/carton-label"
 import { createCoiledJstCable } from "lib/models/coiled-jst-cable"
 import {
@@ -20,12 +28,15 @@ import {
   type ControllerPcb,
   createControllerPcb,
 } from "lib/models/controller-pcb"
+import { createEsdBag, ESD_BAG, type EsdBag } from "lib/models/esd-bag"
 import { createFlexCable, type FlexCable } from "lib/models/flex-cable"
 import { createInkjetPrinter } from "lib/models/inkjet-printer"
 import {
   createLabelSheet,
+  FNSKU_LABEL_SHEET,
   LABEL_SHEET,
   type LabelSheet,
+  type LabelSheetSpec,
 } from "lib/models/label-sheet"
 import {
   createMotorFoamStand,
@@ -39,13 +50,18 @@ import {
   type Nema17Motor,
 } from "lib/models/nema17-motor"
 import { createPackingTote, type PackingTote } from "lib/models/packing-tote"
+import type { PartKit } from "lib/models/part-kit"
 import { createPartsBin, PARTS_BIN } from "lib/models/parts-bin"
 import { type CablePlug, createJstPlug, createUsbCPlug } from "lib/models/plugs"
 import { createQcCradle } from "lib/models/qc-cradle"
 import { createQcLaptop, type QcLaptop } from "lib/models/qc-laptop"
+import type { ScrewPouch } from "lib/models/screw-pouch"
 import { createScrewdriver, type Screwdriver } from "lib/models/screwdriver"
 import {
+  BAG_SHIPPING_CARTON,
+  type CartonSpec,
   createShippingCarton,
+  SHIPPING_CARTON,
   type ShippingCarton,
 } from "lib/models/shipping-carton"
 import {
@@ -75,7 +91,10 @@ import {
 import { BLACK_PLASTIC_MATERIAL } from "lib/scene/shared-materials"
 import {
   ASSEMBLY_BENCH_SPOTS,
+  BAG_LYING_QUATERNION,
+  BAGGING_BENCH_SPOTS,
   LABEL_BENCH_SPOTS,
+  MOTOR_ON_SIDE_QUATERNION,
   PACK_OUT_BENCH_SPOTS,
   PLUG_LYING_QUATERNION,
   PRINTER_BENCH_SPOTS,
@@ -130,6 +149,13 @@ export interface AssemblyUnit {
   charger: Group
   /** Peeled from the top label sheet at pack-out. */
   label: Group | null
+  /** Bare-unit line: the ESD bag it ships in, and the FNSKU label on the bag. */
+  bag: EsdBag | null
+  fnskuLabel: Group | null
+  /** Bare-unit line: where the spacer, board, cable and screw pouch lie in the bag. */
+  kit: PartKit | null
+  /** Bare-unit line: the pink pouch the four screws go in. */
+  screwPouch: ScrewPouch | null
 }
 
 /** The label printer on the label bench, printing AveneMark sheets onto its output stack. */
@@ -143,6 +169,8 @@ export interface LabelPrinterState {
 
 /** Everything movable on the floor. */
 export interface ManufacturingWorld {
+  /** The full kit, or the bare unit in an ESD bag. */
+  productLine: ProductLine
   root: Group
   tables: Record<TableId, Group>
   units: AssemblyUnit[]
@@ -165,6 +193,17 @@ export interface ManufacturingWorld {
   qcPowerCable: QcCable
   /** Label sheets on the pack-out bench, top sheet first; used labels are removed from each sheet. */
   labelSheets: LabelSheet[]
+  /** Bare-unit line: Amazon FNSKU label sheets at the bagging bench, top first. */
+  fnskuSheets: LabelSheet[]
+  /** Where the printers' spacers are poured: the assembly bench, or the bagging bench on the bare-unit line. */
+  spacerHome: {
+    station: Station
+    basketSpot: Vector3
+    usedTubSpot: Vector3
+  }
+  /** Bare-unit line: the one motor kept at QC to spin-test each board, and its cable to the board. */
+  testMotor: Nema17Motor | null
+  testMotorCable: MotorCable | null
   packingTote: PackingTote
   carton: ShippingCarton
   cartonLabel: ReturnType<typeof createCartonLabel>
@@ -204,8 +243,12 @@ export function scatter(seed: number): number {
   return x - Math.floor(x)
 }
 
-function createPlacedTable(tableId: TableId): Group {
-  const placement = TABLE_PLACEMENTS[tableId]
+function createPlacedTable(params: {
+  tableId: TableId
+  placement: TablePlacement | undefined
+}): Group {
+  const { tableId } = params
+  const placement = params.placement ?? TABLE_PLACEMENTS[tableId]
   const table = createStandingDesk()
   table.name = tableId
   table.position.set(placement.centerXM, 0, placement.centerZM)
@@ -296,7 +339,12 @@ export function setOutMotorCable(params: {
   return { cable, motorPlug, boardPlug }
 }
 
-function populateAssemblyBench(table: Group) {
+/**
+ * `isKitting`: the bare-unit line has no motors at this bench. The foam stand
+ * stays (hidden) as the queue of units still to kit, and the motors are made
+ * but never put on the bench.
+ */
+function populateAssemblyBench(table: Group, isKitting = false) {
   const spots = ASSEMBLY_BENCH_SPOTS
   const spacerBasket = createSpacerBasket(ASSEMBLY_SPACER_BASKET)
   spacerBasket.position.copy(spots.spacerBasket)
@@ -318,9 +366,10 @@ function populateAssemblyBench(table: Group) {
   const motors = motorFoamStand.slots.map((slot) => {
     const motor = createNema17Motor()
     motor.group.position.copy(slot.position)
-    motorFoamStand.group.add(motor.group)
+    if (!isKitting) motorFoamStand.group.add(motor.group)
     return motor
   })
+  motorFoamStand.group.visible = !isKitting
   const finishedRack = createMotorRack()
   finishedRack.group.position.copy(spots.finishedRack)
   table.add(motorFoamStand.group, finishedRack.group)
@@ -535,11 +584,218 @@ function populatePackOutBench(table: Group) {
   }
 }
 
-function populateShipReadyBench(table: Group): ShippingCarton {
-  const carton = createShippingCarton()
+function populateShipReadyBench(
+  table: Group,
+  spec: CartonSpec = SHIPPING_CARTON,
+): ShippingCarton {
+  const carton = createShippingCarton(spec)
   carton.group.position.copy(SHIP_READY_BENCH_SPOTS.carton)
   table.add(carton.group)
   return carton
+}
+
+/**
+ * Bare-unit line: the one motor kept at QC, lying in the cradle, with its
+ * own cable plugged into its socket and the board end resting on the bench.
+ * Each board is spin-tested on it.
+ */
+function addQcTestMotor(table: Group): {
+  motor: Nema17Motor
+  cable: MotorCable
+} {
+  const motor = createNema17Motor()
+  table.add(motor.group)
+  motor.group.position.copy(MOTOR_IN_CRADLE_POSITION)
+  motor.group.quaternion.copy(MOTOR_ON_SIDE_QUATERNION)
+  const motorPlug = createJstPlug({ pinCount: 6 })
+  motor.group.add(motorPlug.group)
+  motorPlug.group.position.copy(motor.cableSocket.position)
+  motorPlug.group.quaternion.copy(motor.cableSocket.quaternion)
+  const boardPlug = createJstPlug({ pinCount: 4 })
+  table.add(boardPlug.group)
+  boardPlug.group.position.copy(QC_TEST_PLUG_REST)
+  boardPlug.group.quaternion.copy(PLUG_LYING_QUATERNION)
+  const cable = createFlexCable({
+    startAnchor: motorPlug.wireAnchor,
+    endAnchor: boardPlug.wireAnchor,
+    color: 0x1f2226,
+    radiusM: 0.0012,
+    minYM: TOP + 0.004,
+    slackOffset: new Vector3(0, 0.02, 0.04),
+    leadLengthM: 0.012,
+  })
+  cable.slackFrame = table
+  return { motor, cable: { cable, motorPlug, boardPlug } }
+}
+
+/** Where the test motor's board plug rests between tests, beside the cradle. */
+export const QC_TEST_PLUG_REST = new Vector3(
+  QC_BENCH_SPOTS.cradle.x + 0.09,
+  TOP + 0.0031,
+  QC_BENCH_SPOTS.cradle.z + 0.06,
+)
+
+/** Where each board lies beside the test motor while it is tested, on an ESD mat. */
+export const BOARD_TEST_SPOT = new Vector3(
+  QC_BENCH_SPOTS.cradle.x + 0.08,
+  TOP + 0.0012,
+  QC_BENCH_SPOTS.cradle.z + 0.02,
+)
+
+/**
+ * Bare-unit line: boards start in an untested ESD tray on the QC bench and
+ * go to a passed tray after the spin test; the spacer basket, long-screw bin
+ * and cable bin move to the bagging bench with a box of screw pouches.
+ */
+function setUpBareUnitBenches(params: {
+  qcBench: Group
+  baggingBench: Group
+  assemblyBench: ReturnType<typeof populateAssemblyBench>
+  kitReadyRack: MotorRack
+}): { untested: MotorRack; passed: MotorRack } {
+  const { qcBench, baggingBench, assemblyBench } = params
+  qcBench.remove(params.kitReadyRack.group)
+  const untested = createBoardTray({ rimColor: 0xd9a400 })
+  untested.group.position.copy(QC_BENCH_SPOTS.incomingRack)
+  const passed = createBoardTray({ rimColor: 0x1d9f5a })
+  passed.group.position.copy(QC_BENCH_SPOTS.readyRack)
+  qcBench.add(untested.group, passed.group)
+  for (const [index, pcb] of assemblyBench.pcbs.entries()) {
+    untested.group.add(pcb.group)
+    pcb.group.position.copy(untested.slots[index].position)
+    pcb.group.quaternion.identity()
+  }
+  // ESD mat the board lies on next to the test motor.
+  qcBench.add(
+    createBoxMesh({
+      size: [0.12, 0.0012, 0.1],
+      material: createStandardMaterial({ color: 0x3a6e9a, roughness: 0.9 }),
+      position: [BOARD_TEST_SPOT.x, TOP + 0.0006, BOARD_TEST_SPOT.z],
+    }),
+  )
+  const spots = BAGGING_BENCH_SPOTS
+  for (const [object, spot] of [
+    [assemblyBench.spacerBasket, spots.spacerBasket],
+    [assemblyBench.longScrewBin, spots.longScrewBin],
+    [assemblyBench.cableBin, spots.cableBin],
+  ] as const) {
+    baggingBench.add(object)
+    object.position.copy(spot)
+  }
+  // Open box of flat pink screw pouches.
+  const box = new Group()
+  box.position.copy(spots.pouchBox)
+  const cardboard = createStandardMaterial({ color: 0xc49a6c, roughness: 0.95 })
+  box.add(
+    createBoxMesh({
+      size: [0.07, 0.03, 0.09],
+      material: cardboard,
+      position: [0, 0.015, 0],
+    }),
+    createBoxMesh({
+      size: [0.056, 0.012, 0.08],
+      material: createStandardMaterial({ color: 0xf3a1c0, roughness: 0.4 }),
+      position: [0, 0.025, 0],
+    }),
+  )
+  baggingBench.add(box)
+  return { untested, passed }
+}
+
+const BAGS_IN_TRAY = BATCH_SIZE + 6
+const FNSKU_SHEET_COUNT = 2
+
+/** Kit parts the bare unit doesn't ship with: made, never put on a bench. */
+function createUnusedKitParts() {
+  return {
+    boxes: Array.from({ length: BATCH_SIZE }, () => createWhiteMailerBox()),
+    coils: Array.from({ length: BATCH_SIZE * 2 }, () => createCoiledUsbCable()),
+    chargers: Array.from(
+      { length: BATCH_SIZE },
+      () => createUsbCharger().group,
+    ),
+  }
+}
+
+/**
+ * Pack-out bench for bare units: flat ESD bags in a tray (filled by hand, no holder),
+ * the original 2" x 4" tscircuit label sheets, FNSKU sheets and the tote.
+ */
+function populateBaggingBench(table: Group) {
+  const spots = BAGGING_BENCH_SPOTS
+  const tray = new Group()
+  tray.position.copy(spots.bagTray)
+  const cardboard = createStandardMaterial({ color: 0xc49a6c, roughness: 0.95 })
+  const trayWidthM = ESD_BAG.widthM + 0.02
+  const trayLengthM = ESD_BAG.heightM + 0.02
+  tray.add(
+    createBoxMesh({
+      size: [trayWidthM, 0.003, trayLengthM],
+      material: cardboard,
+      position: [0, 0.0015, 0],
+    }),
+  )
+  for (const side of [-1, 1]) {
+    tray.add(
+      createBoxMesh({
+        size: [0.003, 0.03, trayLengthM],
+        material: cardboard,
+        position: [side * (trayWidthM / 2), 0.015, 0],
+      }),
+      createBoxMesh({
+        size: [trayWidthM, 0.03, 0.003],
+        material: cardboard,
+        position: [0, 0.015, side * (trayLengthM / 2)],
+      }),
+    )
+  }
+  table.add(tray)
+  const bags: EsdBag[] = []
+  for (let level = 0; level < BAGS_IN_TRAY; level++) {
+    const bag = createEsdBag()
+    bag.group.quaternion.copy(BAG_LYING_QUATERNION)
+    // Lying front up with the opening toward the back of the bench.
+    bag.group.position.set(0, 0.004 + level * 0.0007, ESD_BAG.heightM / 2)
+    tray.add(bag.group)
+    bags.push(bag)
+  }
+
+  const stackSheets = (params: {
+    spec: LabelSheetSpec
+    count: number
+    position: Vector3
+  }): LabelSheet[] => {
+    const sheets: LabelSheet[] = []
+    for (let level = 0; level < params.count; level++) {
+      const sheet = createLabelSheet(params.spec)
+      sheet.group.position.copy(params.position)
+      sheet.group.position.y += (params.count - 1 - level) * 0.0006
+      table.add(sheet.group)
+      sheets.push(sheet)
+    }
+    // Peel from the front row first.
+    for (const sheet of sheets) sheet.labels.reverse()
+    return sheets
+  }
+  const packingTote = createPackingTote()
+  packingTote.group.position.copy(spots.tote)
+  table.add(packingTote.group)
+  return {
+    ...createUnusedKitParts(),
+    // Take from the top of the pile.
+    bags: bags.reverse(),
+    labelSheets: stackSheets({
+      spec: LABEL_SHEET,
+      count: LABEL_SHEET_COUNT + 1,
+      position: spots.stickerSheets,
+    }),
+    fnskuSheets: stackSheets({
+      spec: FNSKU_LABEL_SHEET,
+      count: FNSKU_SHEET_COUNT,
+      position: spots.fnskuSheets,
+    }),
+    packingTote,
+  }
 }
 
 function populatePrinterBench(table: Group) {
@@ -583,17 +839,45 @@ function populateLabelBench(table: Group): LabelPrinterState {
 }
 
 /** Build every bench and every part on it, in its starting state. */
-export function createWorld(): ManufacturingWorld {
+export function createWorld(
+  params: { productLine?: ProductLine } = {},
+): ManufacturingWorld {
+  const productLine = params.productLine ?? "kit"
+  const isBagged = productLine === "bagged"
   const root = new Group()
+  const layout = isBagged ? BARE_UNIT_TABLE_LAYOUT : KIT_TABLE_LAYOUT
   const tableIds = Object.keys(TABLE_PLACEMENTS) as TableId[]
   const tables = Object.fromEntries(
-    tableIds.map((tableId) => [tableId, createPlacedTable(tableId)]),
+    tableIds.map((tableId) => [
+      tableId,
+      createPlacedTable({ tableId, placement: layout[tableId] }),
+    ]),
   ) as Record<TableId, Group>
-  for (const table of Object.values(tables)) root.add(table)
-  const assemblyBench = populateAssemblyBench(tables.assembly_bench)
+  // A bench missing from the layout (the bare-unit line's assembly bench) is
+  // built but left off the floor.
+  for (const tableId of tableIds) if (layout[tableId]) root.add(tables[tableId])
+  const assemblyBench = populateAssemblyBench(tables.assembly_bench, isBagged)
   const qcBench = populateQcBench(tables.qc_bench)
-  const packOutBench = populatePackOutBench(tables.pack_out_bench)
-  const carton = populateShipReadyBench(tables.ship_ready_bench)
+  const testFixture = isBagged ? addQcTestMotor(tables.qc_bench) : null
+  const bareUnitTrays = isBagged
+    ? setUpBareUnitBenches({
+        qcBench: tables.qc_bench,
+        baggingBench: tables.pack_out_bench,
+        assemblyBench,
+        kitReadyRack: qcBench.readyRack,
+      })
+    : null
+  const packOutBench = isBagged
+    ? populateBaggingBench(tables.pack_out_bench)
+    : {
+        ...populatePackOutBench(tables.pack_out_bench),
+        bags: [],
+        fnskuSheets: [],
+      }
+  const carton = populateShipReadyBench(
+    tables.ship_ready_bench,
+    isBagged ? BAG_SHIPPING_CARTON : SHIPPING_CARTON,
+  )
   const printerBench = populatePrinterBench(tables.printer_bench)
   const labelPrinter = populateLabelBench(tables.label_bench)
   const cartonLabel = createCartonLabel()
@@ -616,19 +900,37 @@ export function createWorld(): ManufacturingWorld {
       ],
       charger: packOutBench.chargers[unitIndex],
       label: null,
+      bag: packOutBench.bags[unitIndex] ?? null,
+      fnskuLabel: null,
+      kit: null,
+      screwPouch: null,
     })
     assemblyBench.motorFoamStand.occupants[unitIndex] = unitIndex
+    if (bareUnitTrays) bareUnitTrays.untested.occupants[unitIndex] = unitIndex
   }
   const cables = [qcBench.qcDataCable.cable, qcBench.qcPowerCable.cable]
+  if (testFixture) cables.push(testFixture.cable.cable)
   for (const cable of cables) root.add(cable.wire)
   root.updateMatrixWorld(true)
   return {
+    productLine,
     root,
     tables,
     units,
     motorFoamStand: assemblyBench.motorFoamStand,
-    finishedRack: assemblyBench.finishedRack,
-    readyRack: qcBench.readyRack,
+    finishedRack: bareUnitTrays?.untested ?? assemblyBench.finishedRack,
+    readyRack: bareUnitTrays?.passed ?? qcBench.readyRack,
+    spacerHome: isBagged
+      ? {
+          station: STATIONS.packOut,
+          basketSpot: BAGGING_BENCH_SPOTS.spacerBasket,
+          usedTubSpot: BAGGING_BENCH_SPOTS.usedTubs,
+        }
+      : {
+          station: STATIONS.assembly,
+          basketSpot: ASSEMBLY_BENCH_SPOTS.spacerBasket,
+          usedTubSpot: ASSEMBLY_BENCH_SPOTS.emptyTubs,
+        },
     spacerBasket: assemblyBench.spacerBasket,
     spacerStock: assemblyBench.spacerStock,
     screwdriver: assemblyBench.screwdriver,
@@ -641,6 +943,9 @@ export function createWorld(): ManufacturingWorld {
     qcDataCable: qcBench.qcDataCable,
     qcPowerCable: qcBench.qcPowerCable,
     labelSheets: packOutBench.labelSheets,
+    fnskuSheets: packOutBench.fnskuSheets,
+    testMotor: testFixture?.motor ?? null,
+    testMotorCable: testFixture?.cable ?? null,
     packingTote: packOutBench.packingTote,
     carton,
     cartonLabel,

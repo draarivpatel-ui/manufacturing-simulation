@@ -3,7 +3,6 @@ import type { JobStage, JobStep, UnitParams } from "lib/job/job-step"
 import { OUTBOUND_SPOT, STATIONS } from "lib/layout/station-layout"
 import { CARTON_LABEL } from "lib/models/carton-label"
 import { INKJET_OUTPUT } from "lib/models/inkjet-printer"
-import { SHIPPING_CARTON } from "lib/models/shipping-carton"
 import { WHITE_MAILER_BOX } from "lib/models/white-mailer-box"
 import type { OperatorHand } from "lib/operator/create-operator"
 import type { SimContext } from "lib/simulation/sim-context"
@@ -52,15 +51,6 @@ const LABEL_PRINTER_CLOSE_UP = {
   elevationRadians: 0.78,
   distanceM: 0.6,
 }
-const FRONT_LABEL_POSITION = new Vector3(
-  -0.055,
-  SHIPPING_CARTON.innerHeightM * 0.71,
-  SHIPPING_CARTON.innerWidthM / 2 + SHIPPING_CARTON.boardThicknessM + 0.0005,
-)
-const FRONT_LABEL_QUATERNION = new Quaternion().setFromAxisAngle(
-  new Vector3(1, 0, 0),
-  Math.PI / 2,
-)
 const LABEL_CARRY_QUATERNION = new Quaternion().setFromAxisAngle(
   new Vector3(0, 1, 0),
   Math.PI,
@@ -202,7 +192,7 @@ function* printAndApplyCartonLabel(ctx: SimContext): SimTask {
     view: { azimuthRadians: 0.52, elevationRadians: 0.42, distanceM: 0.85 },
     getFocusPoint: trackObjectPoint({
       object: carton.group,
-      localPoint: FRONT_LABEL_POSITION,
+      localPoint: carton.boxIdLabelSpot.position,
     }),
   }
   yield* grabObject({ hand, object: label, localGripPoint: LABEL_GRIP_POINT })
@@ -211,8 +201,8 @@ function* printAndApplyCartonLabel(ctx: SimContext): SimTask {
       object: label,
       hand,
       parent: carton.group,
-      localPosition: FRONT_LABEL_POSITION,
-      localQuaternion: FRONT_LABEL_QUATERNION,
+      localPosition: carton.boxIdLabelSpot.position,
+      localQuaternion: carton.boxIdLabelSpot.quaternion,
       durationSeconds: 1,
       arcHeightM: 0.05,
     },

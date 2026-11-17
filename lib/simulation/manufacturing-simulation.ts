@@ -1,8 +1,15 @@
-import { JOB_ROWS } from "lib/job/job-plan"
+import { getJobPlan } from "lib/job/bagged-job-plan"
+import type { JobPlan, ProductLine } from "lib/job/job-plan"
 import { printLabelSheet, printLabelsNow } from "lib/job/label-collection"
 import { advancePrinters, finishPrintsNow } from "lib/job/printer-steps"
 import { getSideJobAt, runPendingSideJob } from "lib/job/side-jobs"
-import { BATCH_SIZE, OPERATOR_START } from "lib/layout/station-layout"
+import {
+  BARE_UNIT_TABLE_LAYOUT,
+  BATCH_SIZE,
+  getLayoutPlacements,
+  KIT_TABLE_LAYOUT,
+  OPERATOR_START,
+} from "lib/layout/station-layout"
 import { populatePlate } from "lib/models/bambu-printer"
 import { updateFlexCable } from "lib/models/flex-cable"
 import { createRoomShell, type RoomShell } from "lib/models/room-shell"
@@ -88,13 +95,17 @@ function restoreHands(pausePose: PausePose): void {
   }
 }
 
-function createJobProgress(unitCount: number): JobProgress {
+function createJobProgress(params: {
+  unitCount: number
+  jobPlan: JobPlan
+}): JobProgress {
+  const { unitCount, jobPlan } = params
   return {
     unitCount,
     isOneAtATime: unitCount === 1,
     activeRowIndex: null,
-    rowSeconds: JOB_ROWS.map(() => 0),
-    rowCompletedCounts: JOB_ROWS.map(() => 0),
+    rowSeconds: jobPlan.rows.map(() => 0),
+    rowCompletedCounts: jobPlan.rows.map(() => 0),
     cycleSeconds: 0,
     isJobActive: false,
     isJobComplete: false,
@@ -152,20 +163,30 @@ export class ManufacturingSimulation {
     cameraCcwYawRadians: 0,
   }
 
-  constructor() {
+  /** The full kit (default) or the bare unit in an ESD bag. */
+  readonly productLine: ProductLine
+
+  constructor(params: { productLine?: ProductLine } = {}) {
+    this.productLine = params.productLine ?? "kit"
+    const jobPlan = getJobPlan(this.productLine)
+    const tableLayout =
+      this.productLine === "bagged" ? BARE_UNIT_TABLE_LAYOUT : KIT_TABLE_LAYOUT
     const scene = new Scene()
     this.roomShell = createRoomShell()
     const operator = createOperator()
     scene.add(this.roomShell.group, operator.group)
     this.ctx = {
       scene,
-      world: createWorld(),
+      world: createWorld({ productLine: this.productLine }),
       operator,
       navGrid: createNavGrid({
         cellSizeM: NAV_GRID_CELL_SIZE_M,
         clearanceM: NAV_GRID_CLEARANCE_M,
+        tables: getLayoutPlacements(tableLayout),
       }),
-      progress: createJobProgress(BATCH_SIZE),
+      progress: createJobProgress({ unitCount: BATCH_SIZE, jobPlan }),
+      jobPlan,
+      tableLayout,
       mode: "simulation",
       statusText: "",
       cameraHint: null,
@@ -197,9 +218,12 @@ export class ManufacturingSimulation {
     this.pausePose = null
     const { ctx } = this
     ctx.scene.remove(ctx.world.root)
-    ctx.world = createWorld()
+    ctx.world = createWorld({ productLine: this.productLine })
     ctx.scene.add(ctx.world.root)
-    ctx.progress = createJobProgress(this.unitCount)
+    ctx.progress = createJobProgress({
+      unitCount: this.unitCount,
+      jobPlan: ctx.jobPlan,
+    })
     ctx.cameraHint = null
     ctx.soundCues.length = 0
     resetOperator({

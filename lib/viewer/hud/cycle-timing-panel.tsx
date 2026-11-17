@@ -2,6 +2,13 @@ import { formatSeconds } from "lib/job/bench-work"
 import type { UnitStage } from "lib/world/create-world"
 import type { Ref } from "react"
 
+/** The bare-unit line starts with untested boards at QC and bags instead of boxing. */
+const BARE_UNIT_STAGE_LABELS: Partial<Record<UnitStage, string>> = {
+  raw: "Untested",
+  tested: "Passed",
+  packed: "Bagged",
+}
+
 const STAGE_LABELS: Record<UnitStage, string> = {
   raw: "To assemble",
   assembled: "Assembled",
@@ -52,11 +59,19 @@ export function CycleTimingPanel(props: {
         </ol>
         <div className="tot">
           <div className="stages">
-            {hud.unitsByStage.map(({ stage, count }) => (
-              <span key={stage} className="stage-cell">
-                {STAGE_LABELS[stage]} <b>{count}</b>
-              </span>
-            ))}
+            {hud.unitsByStage
+              .filter(
+                ({ stage }) =>
+                  !(hud.productLine === "bagged" && stage === "assembled"),
+              )
+              .map(({ stage, count }) => (
+                <span key={stage} className="stage-cell">
+                  {hud.productLine === "bagged"
+                    ? (BARE_UNIT_STAGE_LABELS[stage] ?? STAGE_LABELS[stage])
+                    : STAGE_LABELS[stage]}{" "}
+                  <b>{count}</b>
+                </span>
+              ))}
           </div>
           <span>Labels at pack-out</span>
           <span className="t">

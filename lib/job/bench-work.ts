@@ -1,11 +1,5 @@
 import { getBenchOf, getOccupants, hasFreeSlot } from "lib/job/container-slots"
-import {
-  type JobRow,
-  LINE_TABLES,
-  TRANSFER_ROWS,
-  UNIT_STAGES,
-  type UnitStagePlan,
-} from "lib/job/job-plan"
+import type { JobRow, UnitStagePlan } from "lib/job/job-plan"
 import { runPendingSideJob } from "lib/job/side-jobs"
 import {
   BATCH_SIZE,
@@ -68,8 +62,14 @@ export function countUnitsAt(
   return getJobUnits(ctx).filter((unit) => unit.stage === params.stage).length
 }
 
-function getPlanFor(tableId: TableId): UnitStagePlan | null {
-  return UNIT_STAGES.find((plan) => plan.tableId === tableId) ?? null
+function getPlanFor(
+  params: { tableId: TableId },
+  ctx: SimContext,
+): UnitStagePlan | null {
+  return (
+    ctx.jobPlan.unitStages.find((plan) => plan.tableId === params.tableId) ??
+    null
+  )
 }
 
 /** Is a unit waiting at this bench, in the container the bench works from? */
@@ -104,7 +104,7 @@ export function countWaitingUnits(
   params: { tableId: TableId },
   ctx: SimContext,
 ): number {
-  const plan = getPlanFor(params.tableId)
+  const plan = getPlanFor(params, ctx)
   if (!plan) return 0
   return getJobUnits(ctx).filter((_, unitIndex) =>
     isUnitAvailable({ plan, unitIndex }, ctx),
@@ -116,7 +116,7 @@ export function getNextUnitWork(
   params: { tableId: TableId },
   ctx: SimContext,
 ): WorkItem | null {
-  const plan = getPlanFor(params.tableId)
+  const plan = getPlanFor(params, ctx)
   if (!plan) return null
   const units = getJobUnits(ctx)
   const started = units.findIndex(
@@ -178,12 +178,14 @@ export function getFollowUp(
 ): WorkItem | null {
   const { world } = ctx
   const item = (row: JobRow): WorkItem => ({ row, unitIndex: 0, plan: null })
+  const { carryFinishedRack, returnFinishedRack } = ctx.jobPlan.transferRows
   if (params.tableId === "assembly_bench") {
+    if (!carryFinishedRack) return null
     const isRackReady =
       isAt({ object: world.finishedRack, tableId: "assembly_bench" }, ctx) &&
       getOccupants(world.finishedRack).length > 0
     return isRackReady && countUnitsAt({ stage: "raw" }, ctx) === 0
-      ? item(TRANSFER_ROWS.carryFinishedRack)
+      ? item(carryFinishedRack)
       : null
   }
   if (params.tableId === "qc_bench") {
@@ -191,12 +193,14 @@ export function getFollowUp(
       isAt({ object: world.readyRack, tableId: "qc_bench" }, ctx) &&
       getOccupants(world.readyRack).length > 0
     if (hasReady && countUnitsBefore({ stage: "tested" }, ctx) === 0)
-      return item(TRANSFER_ROWS.carryReadyRack)
+      return item(ctx.jobPlan.transferRows.carryReadyRack)
     const isRackEmptyHere =
       isAt({ object: world.finishedRack, tableId: "qc_bench" }, ctx) &&
       getOccupants(world.finishedRack).length === 0
-    return isRackEmptyHere && countUnitsAt({ stage: "raw" }, ctx) > 0
-      ? item(TRANSFER_ROWS.returnFinishedRack)
+    return returnFinishedRack &&
+      isRackEmptyHere &&
+      countUnitsAt({ stage: "raw" }, ctx) > 0
+      ? item(returnFinishedRack)
       : null
   }
   if (params.tableId === "pack_out_bench") {
@@ -204,22 +208,22 @@ export function getFollowUp(
       isAt({ object: world.packingTote, tableId: "pack_out_bench" }, ctx) &&
       getOccupants(world.packingTote).length > 0
     if (hasPacked && countUnitsBefore({ stage: "packed" }, ctx) === 0)
-      return item(TRANSFER_ROWS.carryTote)
+      return item(ctx.jobPlan.transferRows.carryTote)
     const isRackEmptyHere =
       isAt({ object: world.readyRack, tableId: "pack_out_bench" }, ctx) &&
       getOccupants(world.readyRack).length === 0
     return isRackEmptyHere && countUnitsBefore({ stage: "tested" }, ctx) > 0
-      ? item(TRANSFER_ROWS.returnReadyRack)
+      ? item(ctx.jobPlan.transferRows.returnReadyRack)
       : null
   }
   if (params.tableId === "ship_ready_bench") {
     if (world.isCartonShipped) return null
     if (countUnitsBefore({ stage: "in_carton" }, ctx) === 0)
-      return item(TRANSFER_ROWS.sealAndShip)
+      return item(ctx.jobPlan.transferRows.sealAndShip)
     const isToteEmptyHere =
       isAt({ object: world.packingTote, tableId: "ship_ready_bench" }, ctx) &&
       getOccupants(world.packingTote).length === 0
-    return isToteEmptyHere ? item(TRANSFER_ROWS.returnTote) : null
+    return isToteEmptyHere ? item(ctx.jobPlan.transferRows.returnTote) : null
   }
   return null
 }
@@ -233,7 +237,9 @@ export function getCarryWork(
   const item = (row: JobRow): WorkItem => ({ row, unitIndex: 0, plan: null })
   const countIn = (container: { occupants: Array<number | null> }) =>
     getOccupants(container).length
+  const { carryFinishedRack, returnFinishedRack } = ctx.jobPlan.transferRows
   if (
+    carryFinishedRack &&
     params.tableId === "assembly_bench" &&
     isAt({ object: world.finishedRack, tableId: "assembly_bench" }, ctx)
   ) {
@@ -241,7 +247,7 @@ export function getCarryWork(
     if (count > 0)
       return {
         label: `Carry the rack to QC now (${count} assembled)`,
-        item: item(TRANSFER_ROWS.carryFinishedRack),
+        item: item(carryFinishedRack),
       }
   }
   if (params.tableId === "qc_bench") {
@@ -251,17 +257,21 @@ export function getCarryWork(
       isAt({ object: world.readyRack, tableId: "qc_bench" }, ctx)
     ) {
       return {
-        label: `Carry the ready rack to pack-out now (${count} tested)`,
-        item: item(TRANSFER_ROWS.carryReadyRack),
+        label:
+          ctx.world.productLine === "bagged"
+            ? `Carry the passed tray to bagging now (${count} passed)`
+            : `Carry the ready rack to pack-out now (${count} tested)`,
+        item: item(ctx.jobPlan.transferRows.carryReadyRack),
       }
     }
     if (
+      returnFinishedRack &&
       isAt({ object: world.finishedRack, tableId: "qc_bench" }, ctx) &&
       countIn(world.finishedRack) === 0
     ) {
       return {
         label: "Take the empty rack back to assembly",
-        item: item(TRANSFER_ROWS.returnFinishedRack),
+        item: item(returnFinishedRack),
       }
     }
   }
@@ -273,7 +283,7 @@ export function getCarryWork(
     ) {
       return {
         label: `Carry the tote to ship-ready now (${count} packed)`,
-        item: item(TRANSFER_ROWS.carryTote),
+        item: item(ctx.jobPlan.transferRows.carryTote),
       }
     }
     if (
@@ -282,7 +292,7 @@ export function getCarryWork(
     ) {
       return {
         label: "Take the empty ready rack back to QC",
-        item: item(TRANSFER_ROWS.returnReadyRack),
+        item: item(ctx.jobPlan.transferRows.returnReadyRack),
       }
     }
   }
@@ -291,7 +301,7 @@ export function getCarryWork(
     if (count > 0)
       return {
         label: `Seal, label and ship the carton now (${count} boxes)`,
-        item: item(TRANSFER_ROWS.sealAndShip),
+        item: item(ctx.jobPlan.transferRows.sealAndShip),
       }
     if (
       isAt({ object: world.packingTote, tableId: "ship_ready_bench" }, ctx) &&
@@ -299,7 +309,7 @@ export function getCarryWork(
     ) {
       return {
         label: "Take the empty tote back to pack-out",
-        item: item(TRANSFER_ROWS.returnTote),
+        item: item(ctx.jobPlan.transferRows.returnTote),
       }
     }
   }
@@ -365,11 +375,11 @@ export function* assembleOneMotor(ctx: SimContext): SimTask {
     if (progress.unitCount >= BATCH_SIZE) return
     progress.unitCount += 1
   }
-  const first = getNextUnitWork({ tableId: "assembly_bench" }, ctx)
+  const first = getNextUnitWork({ tableId: ctx.jobPlan.lineTables[0] }, ctx)
   if (!first) return
   const { unitIndex } = first
   for (;;) {
-    const work = getNextUnitWork({ tableId: "assembly_bench" }, ctx)
+    const work = getNextUnitWork({ tableId: ctx.jobPlan.lineTables[0] }, ctx)
     if (!work || work.unitIndex !== unitIndex) break
     const blocker = getWorkBlocker(work, ctx)
     if (blocker) {
@@ -377,6 +387,11 @@ export function* assembleOneMotor(ctx: SimContext): SimTask {
       return
     }
     yield* runWorkItem(work, ctx)
+  }
+  if (ctx.world.productLine === "bagged") {
+    const passed = countUnitsAt({ stage: "tested" }, ctx)
+    ctx.statusText = `${formatUnitCount(passed)} passed. E tests another; R carries the passed tray to bagging.`
+    return
   }
   const inRack = countUnitsAt({ stage: "assembled" }, ctx)
   ctx.statusText = `${formatUnitCount(inRack)} in the rack. E on the green circle builds another; the amber circle takes the rack to QC.`
@@ -410,7 +425,7 @@ export function* runBench(
 
 /** Run the line bench by bench until the carton ships; stops if the user takes control or a bench is blocked. */
 export function* runFullBatch(ctx: SimContext): SimTask {
-  for (const tableId of LINE_TABLES) {
+  for (const tableId of ctx.jobPlan.lineTables) {
     yield* runBench({ tableId }, ctx)
     if (ctx.mode !== "simulation") return
     const pending = getNextUnitWork({ tableId }, ctx)
@@ -420,7 +435,7 @@ export function* runFullBatch(ctx: SimContext): SimTask {
 
 /** The next thing the line needs, at the first bench that has work: for the camera and the station ring. */
 export function getNextLineWork(ctx: SimContext): WorkItem | null {
-  for (const tableId of LINE_TABLES) {
+  for (const tableId of ctx.jobPlan.lineTables) {
     const work =
       getNextUnitWork({ tableId }, ctx) ?? getFollowUp({ tableId }, ctx)
     if (work) return work
