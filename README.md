@@ -38,22 +38,6 @@ simulation.ctx.progress.cycleSeconds // total including walking
   - **Label printer:** an Epson EcoTank ET-2400 that prints an AveneMark sheet (10 labels) every 45 s, up to 6 in its tray. Collecting them carries the sheets to the top of the pack-out stack.
 - **Timing:** each per-unit step is summed over the batch. The carton is sealed, labeled, and shipped once per batch. A batch of 25 takes about 39 minutes of simulated time using estimated gesture durations.
 
-## Second line: the bare unit, bagged
-
-`pages/bare-unit-bagging.page.tsx` is a second simulation on the same floor, with the same printers, tools and operator. The full kit line is unchanged. It makes the bare unit, a motor controller kit with no motor. Each bag holds the board, one 4 mm spacer, four long M3 screws in a small pink anti-static pouch, and the motor-to-board cable.
-
-- **No assembly bench:** that table is gone and the other benches shift up the line. QC sits where assembly used to be, the bagging bench where QC was.
-- **QC:** all 25 untested boards wait in a black ESD tray (amber rim). The one test motor stays in its cradle. Each board is set on the ESD mat beside it, never screwed on. The test motor's cable, DATA and PWR are plugged in, the motor is spun, and then everything is unplugged. The board goes into the passed tray (green rim). You can test one at a time and carry the passed tray to bagging whenever you like.
-- **Label printer:** prints the original 2" × 4" tscircuit labels, the same sheets as the kit line. FNSKU sheets (1" × 2-5/8", 30 to a sheet) are on the bagging bench.
-- **Bagging bench:**
-  1. Fill a 2" × 3" pink pouch with the 4 long screws, zip it and fold it in half.
-  2. Hold an Ellbest 80 × 120 mm shielding zip bag open by hand (no bag holder). It has a yellow ESD caution sticker on the back.
-  3. Put in the spacer, the board on top of it, a coiled cable and the screw pouch (two piles side by side), then zip.
-  4. Lay the bag flat: tscircuit label on the front, turn it over, FNSKU label on the back, then into the tote.
-- **Ship-ready:** 25 bags stand upright in a 10 × 8 × 6 in carton (about 2 lb). The carton is sealed, and the same 4 × 6 FBA box ID as the kit line is printed and put on sideways, since the carton is only 6" tall.
-
-In Cosmos, pick "bare-unit-bagging". In the vite dev server, add `?line=bagged`. The bag-size math, the bags to buy, and the Amazon packaging and labelling rules are in [docs/bare-unit-packaging.md](docs/bare-unit-packaging.md).
-
 ### Amazon carton for 25
 
 The packed mailer is about 7.25 × 4.25 × 3.1 in. The modeled **15 × 13 × 17 in (inside) carton** fits a 2 × 3 × 5 stack, leaving five positions empty for this batch. At roughly 0.56 kg per packed unit, the 25 units weigh about 14 kg (31 lb) before adding the carton and void fill. Weigh and measure the packed carton before shipping.
@@ -75,6 +59,22 @@ The PCB is [imrishabh18/rp2040-motor-controller](https://tscircuit.com/imrishabh
 - **Cables:** both HRO TYPE-C-31-M-12 USB-C ports are on one edge. QC plugs the laptop's cable into **DATA** and the charging station's cable into **PWR**. The motor cable's PHR-4 slides into the side-entry S4B-PH-K-S (J1, pins A+ A− B+ B−) parallel to the board. The board is turned on the motor so J1 faces the motor's own 6-pin socket.
 
 Parts are drawn as boxes sized from their footprints, merged into one mesh per material and shared by all boards. Table positions are placeholders until the real layout is measured.
+
+## Second line: the bare unit, bagged
+
+`pages/manufacturing-simulation-bare-unit.page.tsx` is a second simulation on the same floor, with the same printers, tools and operator. The full kit line is unchanged. It makes the bare unit, a motor controller kit with no motor. Each bag holds the board, one 4 mm spacer, four long M3 screws in a small pink anti-static pouch, and the motor-to-board cable.
+
+- **No assembly bench:** that table is gone and the other benches shift up the line. QC sits where assembly used to be, the bagging bench where QC was.
+- **QC:** all 25 untested boards wait in a black ESD tray (amber rim). The one test motor stays in its cradle. Each board is set on the ESD mat beside it, never screwed on. The test motor's cable, DATA and PWR are plugged in, the motor is spun, and then everything is unplugged. The board goes into the passed tray (green rim). You can test one at a time and carry the passed tray to bagging whenever you like.
+- **Label printer:** prints the original 2" × 4" tscircuit labels, the same sheets as the kit line. FNSKU sheets (1" × 2-5/8", 30 to a sheet) are on the bagging bench.
+- **Bagging bench:**
+  1. Fill a 2" × 3" pink pouch with the 4 long screws, zip it and fold it in half.
+  2. Hold an Ellbest 80 × 120 mm shielding zip bag open by hand (no bag holder). It has a yellow ESD caution sticker on the back.
+  3. Put in the spacer, the board on top of it, a coiled cable and the screw pouch (two piles side by side), then zip.
+  4. Lay the bag flat: tscircuit label on the front, turn it over, FNSKU label on the back, then into the tote.
+- **Ship-ready:** 25 bags stand upright in a 10 × 8 × 6 in carton (about 2 lb). The carton is sealed, and the same 4 × 6 FBA box ID as the kit line is printed and put on sideways, since the carton is only 6" tall.
+
+In Cosmos, pick "manufacturing-simulation-bare-unit" (listed under the main simulation). In the vite dev server, add `?line=bagged`. The bag-size math, the bags to buy, and the Amazon packaging and labelling rules are in [docs/bare-unit-packaging.md](docs/bare-unit-packaging.md).
 
 ## Controls
 
