@@ -12,6 +12,12 @@ import {
 } from "lib/job/bench-work"
 import { collectPrintedLabels } from "lib/job/label-collection"
 import {
+  getLaserJobLabel,
+  getLaserStatusText,
+  hasLaserWork,
+  runLaserJob,
+} from "lib/job/laser-steps"
+import {
   collectFinishedPlates,
   getFinishedPrinters,
   refillSpacerBasket,
@@ -211,7 +217,9 @@ export function getGameActions(
       actions.blockedReason =
         pad.id === "label_printer"
           ? "No printed label sheets yet. Press C to carry on."
-          : "No finished plates yet. Press C to carry on."
+          : pad.id === "uv_laser"
+            ? "Nothing to do at the UV laser yet. Press C to carry on."
+            : "No finished plates yet. Press C to carry on."
     return actions
   }
   const { progress, operator, world } = ctx
@@ -244,6 +252,17 @@ export function getGameActions(
         createTask: () => collectFinishedPlates(ctx),
       }
     }
+    return actions
+  }
+  if (tableId === "laser_bench" && world.uvLaser) {
+    if (hasLaserWork(ctx) && handsAreEmpty) {
+      const label = getLaserJobLabel(ctx)
+      actions.benchAction = {
+        label: label.charAt(0).toUpperCase() + label.slice(1),
+        createTask: () => runLaserJob({}, ctx),
+      }
+    } else if (world.uvLaser.isEngraving)
+      actions.blockedReason = getLaserStatusText(world.uvLaser)
     return actions
   }
   if (tableId === "label_bench") {

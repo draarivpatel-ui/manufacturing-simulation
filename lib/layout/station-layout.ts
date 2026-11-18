@@ -8,6 +8,7 @@ export type TableId =
   | "ship_ready_bench"
   | "printer_bench"
   | "label_bench"
+  | "laser_bench"
 
 /**
  * Units per batch: the motor foam stand, both racks and the tote each hold a
@@ -89,12 +90,17 @@ export const TABLE_PLACEMENTS: Record<TableId, TablePlacement> = {
     centerZM: 5.6 + LINE_TABLE_PITCH_M,
     label: "Label printer",
   }),
+  // Next along the east wall: the UV laser that engraves the kit boxes.
+  laser_bench: placeOnEastWall({
+    centerZM: 5.6 + 2 * LINE_TABLE_PITCH_M,
+    label: "UV laser",
+  }),
 }
 
 /** Which benches stand where. A bench missing from the layout isn't on the floor. */
 export type TableLayout = Partial<Record<TableId, TablePlacement>>
 
-/** The full kit line: assembly, QC, pack-out and ship-ready, plus printers and labels. */
+/** The full kit line: assembly, QC, pack-out and ship-ready, plus printers, labels and the box laser. */
 export const KIT_TABLE_LAYOUT: TableLayout = TABLE_PLACEMENTS
 
 /**
@@ -107,6 +113,7 @@ export const BARE_UNIT_TABLE_LAYOUT: TableLayout = {
   ship_ready_bench: placeOnLine({ lineOrder: 3, label: "Ship-ready bench" }),
   printer_bench: TABLE_PLACEMENTS.printer_bench,
   label_bench: TABLE_PLACEMENTS.label_bench,
+  // No kit boxes on this line, so no box laser.
 }
 
 /** Placements in a layout, for checking where the floor is free. */
@@ -168,6 +175,12 @@ export const STATIONS = {
     alongTableM: 0,
     standoffFromEdgeM: 0.3,
   },
+  /** In front of the UV laser's slide. */
+  uvLaser: {
+    tableId: "laser_bench",
+    alongTableM: 0.1,
+    standoffFromEdgeM: 0.3,
+  },
 } satisfies Record<string, Station>
 
 /** Floor spot by the entry door where sealed cartons wait for pickup. */
@@ -178,13 +191,3 @@ export const OUTBOUND_SPOT = {
 }
 
 export const OPERATOR_START = { xM: 2.9, zM: 1.2, ccwYawRadians: -0.6 }
-
-/** Loop the operator walks in the "Walk the floor" scenario. */
-export const PATROL_ROUTE = [
-  { x: 1.5, z: 1.6 },
-  { x: 1.5, z: 6.0 },
-  { x: 1.5, z: 8.6 },
-  { x: 3.6, z: 12.6 },
-  { x: 3.8, z: 7.0 },
-  { x: 2.9, z: 1.3 },
-]

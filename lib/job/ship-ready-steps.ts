@@ -28,7 +28,7 @@ import {
   IDENTITY_QUATERNION,
   SHIP_READY_BENCH_SPOTS,
 } from "lib/world/bench-spots"
-import { type Group, Quaternion, Vector3 } from "three"
+import { type Group, type Object3D, Quaternion, Vector3 } from "three"
 
 export const SHIP_CLOSE_UP = {
   azimuthRadians: 1.2,
@@ -113,26 +113,22 @@ function* foldFlap(params: {
   })
 }
 
-function* printAndApplyCartonLabel(ctx: SimContext): SimTask {
-  const { carton, cartonLabel, labelPrinter, tables } = ctx.world
-  const { operator } = ctx
-  const label = cartonLabel.group
-  const hand = operator.rightHand
-  const bench = tables.ship_ready_bench
+/** One printed carton label and where it goes. */
+interface CartonLabelJob {
+  label: Group
+  name: string
+  hand: OperatorHand
+  restSpot: Vector3
+  cartonSpot: Object3D
+}
 
-  ctx.statusText = "Walking to the label printer"
-  ctx.cameraHint = null
-  yield* walkToStation(STATIONS.labelPrinter, ctx)
-  ctx.cameraHint = {
-    station: STATIONS.labelPrinter,
-    view: LABEL_PRINTER_CLOSE_UP,
-    getFocusPoint: trackObjectPoint({
-      object: labelPrinter.group,
-      localPoint: LABEL_FEED_END,
-    }),
-  }
-  yield* waitSeconds(0.35)
-  ctx.statusText = "Printing the FBA Box ID label"
+/** Print a 4" x 6" label: it feeds out of the label printer. */
+function* printCartonLabel(
+  params: { job: CartonLabelJob },
+  ctx: SimContext,
+): SimTask {
+  const { label, name } = params.job
+  ctx.statusText = `Printing the ${name}`
   label.visible = true
   playCue("label_printer", ctx)
   yield* tween({
@@ -141,8 +137,16 @@ function* printAndApplyCartonLabel(ctx: SimContext): SimTask {
       label.position.lerpVectors(LABEL_FEED_START, LABEL_FEED_END, progress)
     },
   })
+}
 
-  ctx.statusText = "Picking up the printed FBA Box ID label"
+/** Take a printed label off the printer into one hand for the walk. */
+function* takeLabelToCarry(
+  params: { job: CartonLabelJob },
+  ctx: SimContext,
+): SimTask {
+  const { label, hand, name } = params.job
+  const { operator } = ctx
+  ctx.statusText = `Picking up the printed ${name}`
   yield* grabObject({ hand, object: label, localGripPoint: LABEL_GRIP_POINT })
   yield* moveObject(
     {
@@ -157,59 +161,112 @@ function* printAndApplyCartonLabel(ctx: SimContext): SimTask {
   )
   label.userData.isCarried = true
   hand.heldObject = label
-  ctx.statusText = "Carrying the FBA Box ID label to Ship-ready"
+}
+
+/**
+ * Print the FBA box ID label and the carrier (DHL) label at the label bench,
+ * carry both to Ship-ready, and put each on its face of the sealed carton:
+ * flat, off the seams, and the carrier label never over the box ID.
+ */
+function* printAndApplyCartonLabels(ctx: SimContext): SimTask {
+  const { carton, cartonLabel, carrierLabel, labelPrinter, tables } = ctx.world
+  const { operator } = ctx
+  const bench = tables.ship_ready_bench
+  const jobs: CartonLabelJob[] = [
+    {
+      label: cartonLabel.group,
+      name: "FBA Box ID label",
+      hand: operator.rightHand,
+      restSpot: SHIP_READY_BENCH_SPOTS.cartonLabelRest,
+      cartonSpot: carton.boxIdLabelSpot,
+    },
+    {
+      label: carrierLabel.group,
+      name: "DHL carrier label",
+      hand: operator.leftHand,
+      restSpot: SHIP_READY_BENCH_SPOTS.carrierLabelRest,
+      cartonSpot: carton.carrierLabelSpot,
+    },
+  ]
+
+  ctx.statusText = "Walking to the label printer"
+  ctx.cameraHint = null
+  yield* walkToStation(STATIONS.labelPrinter, ctx)
+  ctx.cameraHint = {
+    station: STATIONS.labelPrinter,
+    view: LABEL_PRINTER_CLOSE_UP,
+    getFocusPoint: trackObjectPoint({
+      object: labelPrinter.group,
+      localPoint: LABEL_FEED_END,
+    }),
+  }
+  yield* waitSeconds(0.35)
+  for (const job of jobs) {
+    yield* printCartonLabel({ job }, ctx)
+    yield* takeLabelToCarry({ job }, ctx)
+  }
+  ctx.statusText = "Carrying the box ID and carrier labels to Ship-ready"
   ctx.cameraHint = null
   yield* walkToStation(STATIONS.shipReadyLabel, ctx)
 
-  ctx.statusText =
-    "Setting the printed FBA Box ID label on the Ship-ready table"
+  ctx.statusText = "Setting both labels on the Ship-ready table"
   ctx.cameraHint = {
     station: STATIONS.shipReadyLabel,
-    view: { azimuthRadians: 0.4, elevationRadians: 0.85, distanceM: 0.65 },
+    view: { azimuthRadians: 0.4, elevationRadians: 0.85, distanceM: 0.75 },
     getFocusPoint: trackObjectPoint({
       object: bench,
       localPoint: SHIP_READY_BENCH_SPOTS.cartonLabelRest,
     }),
   }
-  hand.heldObject = null
-  yield* moveObject(
-    {
-      object: label,
-      hand,
-      parent: bench,
-      localPosition: SHIP_READY_BENCH_SPOTS.cartonLabelRest,
-      localQuaternion: IDENTITY_QUATERNION,
-      arcHeightM: 0.06,
-    },
-    ctx,
-  )
-  yield* releaseHand(hand)
+  for (const job of jobs) {
+    job.hand.heldObject = null
+    yield* moveObject(
+      {
+        object: job.label,
+        hand: job.hand,
+        parent: bench,
+        localPosition: job.restSpot,
+        localQuaternion: IDENTITY_QUATERNION,
+        arcHeightM: 0.06,
+      },
+      ctx,
+    )
+    yield* releaseHand(job.hand)
+  }
   yield* waitSeconds(0.35)
 
-  ctx.statusText = "Applying the FBA Box ID label to the sealed carton"
-  ctx.cameraHint = {
-    station: STATIONS.shipReadyLabel,
-    view: { azimuthRadians: 0.52, elevationRadians: 0.42, distanceM: 0.85 },
-    getFocusPoint: trackObjectPoint({
-      object: carton.group,
-      localPoint: carton.boxIdLabelSpot.position,
-    }),
-  }
-  yield* grabObject({ hand, object: label, localGripPoint: LABEL_GRIP_POINT })
-  yield* moveObject(
-    {
-      object: label,
+  for (const job of jobs) {
+    ctx.statusText = `Applying the ${job.name} to the sealed carton`
+    ctx.cameraHint = {
+      station: STATIONS.shipReadyLabel,
+      view: { azimuthRadians: 0.52, elevationRadians: 0.42, distanceM: 0.95 },
+      getFocusPoint: trackObjectPoint({
+        object: carton.group,
+        localPoint: job.cartonSpot.position,
+      }),
+    }
+    const hand = operator.rightHand
+    yield* grabObject({
       hand,
-      parent: carton.group,
-      localPosition: carton.boxIdLabelSpot.position,
-      localQuaternion: carton.boxIdLabelSpot.quaternion,
-      durationSeconds: 1,
-      arcHeightM: 0.05,
-    },
-    ctx,
-  )
-  yield* waitSeconds(0.65)
-  yield* releaseHand(hand)
+      object: job.label,
+      localGripPoint: LABEL_GRIP_POINT,
+    })
+    yield* moveObject(
+      {
+        object: job.label,
+        hand,
+        parent: carton.group,
+        localPosition: job.cartonSpot.position,
+        localQuaternion: job.cartonSpot.quaternion,
+        durationSeconds: 1,
+        arcHeightM: 0.05,
+      },
+      ctx,
+    )
+    playCue("label_press", ctx)
+    yield* waitSeconds(0.5)
+    yield* releaseHand(hand)
+  }
 }
 
 /** Fold, tape and label the carton before carrying it to the outbound spot. */
@@ -256,7 +313,7 @@ export function* sealAndShip(_params: UnitParams, ctx: SimContext): SimTask {
   yield* releaseHand(rightHand)
   yield* waitSeconds(0.2)
 
-  yield* printAndApplyCartonLabel(ctx)
+  yield* printAndApplyCartonLabels(ctx)
   yield* walkToStation(STATIONS.shipReady, ctx)
 
   ctx.statusText = "Carrying the labeled carton to the door to ship"

@@ -86,6 +86,12 @@ export interface ShippingCarton {
    * tall carton, turned sideways on one too short for 6".
    */
   boxIdLabelSpot: Object3D
+  /**
+   * Where the 4" x 6" carrier label goes: beside the box ID on the front when
+   * the face is long enough for both, otherwise on the back face. It must
+   * never cover the box ID.
+   */
+  carrierLabelSpot: Object3D
 }
 
 /** How far each flap is folded open, in radians. */
@@ -243,6 +249,34 @@ export function createShippingCarton(
     )
   }
   group.add(boxIdLabelSpot)
+  // Room for both 4" wide labels side by side on the front, 1.25" clear of the edges?
+  const carrierLabelSpot = new Object3D()
+  const frontLengthM = c.innerLengthM + 2 * t
+  const isTall = c.innerHeightM >= CARTON_LABEL.lengthM + 0.05
+  if (isTall && frontLengthM >= 2 * CARTON_LABEL.widthM + 0.1) {
+    carrierLabelSpot.quaternion.copy(boxIdLabelSpot.quaternion)
+    carrierLabelSpot.position.set(
+      boxIdLabelSpot.position.x + CARTON_LABEL.widthM + 0.03,
+      boxIdLabelSpot.position.y,
+      frontZ,
+    )
+  } else {
+    // On the back face (-Z), sideways if the carton is too short for 6".
+    carrierLabelSpot.quaternion.setFromAxisAngle(
+      new Vector3(1, 0, 0),
+      -Math.PI / 2,
+    )
+    if (!isTall)
+      carrierLabelSpot.quaternion.multiply(
+        new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2),
+      )
+    carrierLabelSpot.position.set(
+      0,
+      c.innerHeightM * (isTall ? 0.6 : 0.45),
+      -frontZ,
+    )
+  }
+  group.add(carrierLabelSpot)
   return {
     group,
     slots,
@@ -257,5 +291,6 @@ export function createShippingCarton(
     leftGrip,
     rightGrip,
     boxIdLabelSpot,
+    carrierLabelSpot,
   }
 }

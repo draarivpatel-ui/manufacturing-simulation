@@ -5,7 +5,17 @@ import {
   createRectangleShape,
   createStandardMaterial,
 } from "lib/scene/primitives"
-import { Group, Object3D, Path, type Shape } from "three"
+import {
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  Object3D,
+  Path,
+  PlaneGeometry,
+  Quaternion,
+  type Shape,
+  Vector3,
+} from "three"
 
 /**
  * The Boxery white corrugated tuck mailer, 7" x 4" x 3" inside, with a hinged
@@ -44,7 +54,20 @@ export interface WhiteMailerBox {
   lidTip: Object3D
   /** Where the product label goes: near the left end of the closed lid, in lid coordinates. */
   stickerSpot: Object3D
+  /**
+   * "Made in China" lasered into the base, beside the UPC sticker. Hidden until the box has been
+   * through the UV laser; the viewer gives it the engraved text.
+   */
+  engraving: Mesh
+  /** Where the 2" x 1" thermal UPC sticker goes: the bottom face, front-left corner, printed side down. */
+  barcodeSpot: Object3D
 }
+
+/** The engraved country-of-origin mark on the base: about 50 x 9 mm. */
+export const ORIGIN_ENGRAVING = { widthM: 0.05, heightM: 0.009 } as const
+
+/** Clearance from the bottom edges to the UPC sticker, a little over Amazon's 1/4". */
+const BARCODE_EDGE_CLEARANCE_M = 0.008
 
 /** Pink anti-static foam color. */
 const PINK_FOAM_COLOR = 0xf48fb8
@@ -147,7 +170,53 @@ export function createWhiteMailerBox(): WhiteMailerBox {
   const stickerSpot = new Object3D()
   stickerSpot.position.set(-b.lengthM / 2 + 0.034, t, b.widthM / 2)
   lid.add(lidTip, stickerSpot)
-  return { group, lid, lidTip, stickerSpot }
+
+  const engraving = new Mesh(
+    new PlaneGeometry(ORIGIN_ENGRAVING.widthM, ORIGIN_ENGRAVING.heightM),
+    new MeshBasicMaterial({
+      color: 0x6b5a48,
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+    }),
+  )
+  // On the underside of the base, at the other end from the UPC sticker,
+  // facing down and reading left to right with the box turned over.
+  engraving.position.set(b.lengthM / 4, -0.0002, 0)
+  engraving.rotation.x = Math.PI / 2
+  engraving.userData.isOriginEngraving = true
+  engraving.visible = false
+  group.add(engraving)
+
+  // Sticker local +Y is its printed face and its long side runs along Z:
+  // turn the long side along the box, then face it down.
+  const barcodeSpot = new Object3D()
+  barcodeSpot.position.set(
+    -b.lengthM / 2 + BARCODE_EDGE_CLEARANCE_M + 0.0254,
+    -0.0002,
+    b.widthM / 2 - BARCODE_EDGE_CLEARANCE_M - 0.0127,
+  )
+  barcodeSpot.quaternion
+    .setFromAxisAngle(new Vector3(1, 0, 0), Math.PI)
+    .multiply(
+      new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2),
+    )
+  group.add(barcodeSpot)
+  return { group, lid, lidTip, stickerSpot, engraving, barcodeSpot }
+}
+
+/** Whether "Made in China" has been lasered into the box. */
+export function isBoxEngraved(box: WhiteMailerBox): boolean {
+  return box.engraving.visible
+}
+
+/** Mark the box as lasered (or blank again). */
+export function setBoxEngraved(params: {
+  box: WhiteMailerBox
+  isEngraved: boolean
+}): void {
+  params.box.engraving.visible = params.isEngraved
 }
 
 /** Height of the pocket floor (top of the bottom foam slab) above the box origin. */

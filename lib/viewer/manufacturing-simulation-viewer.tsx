@@ -133,6 +133,7 @@ export function ManufacturingSimulationViewer(
             onStartAt={(startId) => runtimeRef.current?.startAt(startId)}
             onPrintsReady={() => runtimeRef.current?.finishPrintsNow()}
             onLabelsPrinted={() => runtimeRef.current?.printLabelsNow()}
+            onEngravingDone={() => runtimeRef.current?.finishEngravingNow()}
             onToggle={() => foldOtherPanel(controlDetailsRef.current)}
           >
             {isCoarsePointer && cameraBar}

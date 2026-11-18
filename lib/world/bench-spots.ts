@@ -61,6 +61,8 @@ export const PACK_OUT_BENCH_SPOTS = {
   ],
   labelSheets: new Vector3(-0.55, TOP, 0.2),
   tote: new Vector3(-0.52, TOP, -0.15),
+  /** MUNBYN thermal printer for the 2" x 1" UPC stickers, beside the packing spot. */
+  thermalPrinter: new Vector3(0.25, TOP, -0.03),
 }
 
 /**
@@ -97,6 +99,8 @@ export const BAG_LYING_QUATERNION = new Quaternion().setFromEuler(
 export const SHIP_READY_BENCH_SPOTS = {
   carton: new Vector3(0, TOP, 0),
   cartonLabelRest: new Vector3(-0.27, TOP, 0.285),
+  /** The carrier label waits beside the box ID label until it goes on. */
+  carrierLabelRest: new Vector3(-0.14, TOP, 0.285),
   incomingTote: new Vector3(0.56, TOP, 0.1),
 }
 
@@ -104,6 +108,19 @@ export const PRINTER_BENCH_SPOTS = {
   p2s: new Vector3(-0.45, TOP, 0),
   h2s: new Vector3(0.35, TOP, -0.05),
   emptyTubs: new Vector3(-0.075, TOP, 0.27),
+}
+
+/** The UV laser bench on the east wall. */
+export const LASER_BENCH_SPOTS = {
+  laser: new Vector3(0.1, TOP, -0.1),
+  /** Blank mailers waiting to be engraved, three stacks. */
+  blankStacks: [
+    new Vector3(-0.36, TOP, -0.1),
+    new Vector3(-0.56, TOP, -0.1),
+    new Vector3(-0.76, TOP, -0.1),
+  ],
+  /** Where the engraved boxes come off the slide, two wide and three high. */
+  engravedBundle: new Vector3(0.62, TOP, 0.05),
 }
 
 export const LABEL_BENCH_SPOTS = {

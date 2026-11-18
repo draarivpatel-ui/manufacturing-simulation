@@ -2,10 +2,12 @@ import { getLabelFocusPoint, getPackingFocusPoint } from "lib/job/bench-frames"
 import { releaseSlot, reserveSlot } from "lib/job/container-slots"
 import type { JobStage, UnitParams } from "lib/job/job-step"
 import { countLabelsAtPackOut, takeNextLabel } from "lib/job/label-stock"
+import { isBoxAtPackOut } from "lib/job/laser-steps"
 import { MOTOR_IN_BOX_POSITION } from "lib/job/unit-poses"
 import { STATIONS } from "lib/layout/station-layout"
 import { COILED_USB_CABLE } from "lib/models/coiled-usb-cable"
 import { STICKER } from "lib/models/sticker"
+import { UPC_STICKER } from "lib/models/thermal-printer"
 import {
   BOX_POCKETS,
   POCKET_FLOOR_YM,
@@ -97,12 +99,54 @@ function* placeInPocket(
   yield* releaseHand(params.hand)
 }
 
-function* openBoxAndNestMotor(params: UnitParams, ctx: SimContext): SimTask {
+/**
+ * The box stood on its back with its bottom toward the operator, for the
+ * UPC sticker: turned -90 degrees about its length, lifted so it rests on
+ * the back face.
+ */
+const BOX_TIPPED_QUATERNION = new Quaternion().setFromAxisAngle(
+  new Vector3(1, 0, 0),
+  -Math.PI / 2,
+)
+const BOX_TIPPED_OFFSET = new Vector3(
+  0,
+  WHITE_MAILER_BOX.widthM / 2,
+  WHITE_MAILER_BOX.heightM / 2,
+)
+const UPC_PRINT_SECONDS = 1.2
+
+/** Print the next UPC sticker on the MUNBYN: it feeds out of the front slot. */
+function* printUpcSticker(
+  params: UnitParams,
+  ctx: SimContext,
+): Generator<void, Group, number> {
+  const thermal = ctx.world.thermalPrinter
+  const sticker = thermal?.roll.pop()
+  if (!thermal || !sticker) throw new Error("No UPC stickers left on the roll")
+  ctx.statusText = `Unit ${params.unitIndex + 1}: printing the 2×1 UPC sticker on the thermal printer`
+  const { feedStart, feedEnd } = thermal.printer
+  sticker.visible = true
+  playCue("label_printer", ctx)
+  yield* tween({
+    durationSeconds: UPC_PRINT_SECONDS,
+    onProgress: (progress) => {
+      sticker.position.lerpVectors(
+        feedStart.position,
+        feedEnd.position,
+        progress,
+      )
+    },
+  })
+  return sticker
+}
+
+/** Take the next engraved box off the stack, print its UPC sticker and put it on a corner of the base. */
+function* takeBoxAndApplyUpc(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
   const unit = world.units[params.unitIndex]
   const { box } = unit
-  releaseSlot({ container: world.readyRack, unitIndex: params.unitIndex })
-  ctx.statusText = `Unit ${params.unitIndex + 1}: taking a white mailer off the stack`
+  const bench = world.tables.pack_out_bench
+  ctx.statusText = `Unit ${params.unitIndex + 1}: taking an engraved mailer off the stack`
   yield* grabObject({
     hand: operator.leftHand,
     object: box.group,
@@ -118,15 +162,89 @@ function* openBoxAndNestMotor(params: UnitParams, ctx: SimContext): SimTask {
     {
       object: box.group,
       hand: operator.leftHand,
-      parent: world.tables.pack_out_bench,
+      parent: bench,
       localPosition: PACK_OUT_BENCH_SPOTS.packing,
       localQuaternion: IDENTITY_QUATERNION,
       liftHeightM: 0.05,
     },
     ctx,
   )
-  yield* releaseHand(operator.leftHand)
+  const sticker = yield* printUpcSticker(params, ctx)
 
+  ctx.statusText = `Unit ${params.unitIndex + 1}: tipping the box onto its back, bottom toward you`
+  yield* moveObject(
+    {
+      object: box.group,
+      hand: operator.leftHand,
+      parent: bench,
+      localPosition: PACK_OUT_BENCH_SPOTS.packing
+        .clone()
+        .add(BOX_TIPPED_OFFSET),
+      localQuaternion: BOX_TIPPED_QUATERNION,
+      durationSeconds: 0.8,
+      arcHeightM: 0.02,
+    },
+    ctx,
+  )
+
+  ctx.statusText = `Unit ${params.unitIndex + 1}: UPC sticker on a corner of the base, beside "Made in China"`
+  const hand = operator.rightHand
+  yield* grabObject({
+    hand,
+    object: sticker,
+    localGripPoint: new Vector3(0, 0.001, UPC_STICKER.lengthM / 2 - 0.006),
+    fingerCurl: 1,
+    durationSeconds: 0.6,
+  })
+  const spot = box.barcodeSpot
+  const outward = new Vector3(0, 0.012, 0).applyQuaternion(spot.quaternion)
+  yield* moveObject(
+    {
+      object: sticker,
+      hand,
+      parent: box.group,
+      localPosition: spot.position.clone().add(outward),
+      localQuaternion: spot.quaternion,
+      durationSeconds: 0.8,
+      arcHeightM: 0.04,
+    },
+    ctx,
+  )
+  yield* moveObject(
+    {
+      object: sticker,
+      hand,
+      parent: box.group,
+      localPosition: spot.position,
+      localQuaternion: spot.quaternion,
+      durationSeconds: 0.25,
+    },
+    ctx,
+  )
+  playCue("label_press", ctx)
+  yield* releaseHand(hand)
+  unit.upcLabel = sticker
+
+  yield* moveObject(
+    {
+      object: box.group,
+      hand: operator.leftHand,
+      parent: bench,
+      localPosition: PACK_OUT_BENCH_SPOTS.packing,
+      localQuaternion: IDENTITY_QUATERNION,
+      durationSeconds: 0.8,
+      arcHeightM: 0.02,
+    },
+    ctx,
+  )
+  yield* releaseHand(operator.leftHand)
+}
+
+function* openBoxAndNestMotor(params: UnitParams, ctx: SimContext): SimTask {
+  const { world, operator } = ctx
+  const unit = world.units[params.unitIndex]
+  const { box } = unit
+  releaseSlot({ container: world.readyRack, unitIndex: params.unitIndex })
   ctx.statusText = `Unit ${params.unitIndex + 1}: opening the lid, pink anti-static foam top and bottom`
   yield* openOrCloseLid({ box, hand: operator.leftHand, isOpening: true })
 
@@ -305,7 +423,21 @@ export const PACK_OUT_STAGE: JobStage = {
   isPerUnit: true,
   steps: [
     {
-      label: "Open a box, nest the motor",
+      label: "Engraved box, UPC sticker on the base",
+      station: STATIONS.packOut,
+      closeUpView: PACK_CLOSE_UP,
+      getFocusPoint: (_params, ctx) => getPackingFocusPoint(ctx),
+      run: takeBoxAndApplyUpc,
+      getBlocker: ({ unitIndex }, ctx) => {
+        if (!isBoxAtPackOut(ctx.world.units[unitIndex].box, ctx))
+          return "No engraved box at pack-out for this unit. Collect the engraved boxes from the UV laser."
+        if ((ctx.world.thermalPrinter?.roll.length ?? 0) === 0)
+          return "The thermal printer is out of UPC stickers."
+        return null
+      },
+    },
+    {
+      label: "Open the box, nest the motor",
       station: STATIONS.packOut,
       closeUpView: PACK_CLOSE_UP,
       getFocusPoint: (_params, ctx) => getPackingFocusPoint(ctx),

@@ -1,6 +1,6 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
-import BareUnitBaggingPage from "../pages/bare-unit-bagging.page"
+import BareUnitBaggingPage from "../pages/manufacturing-simulation-bare-unit.page"
 import ManufacturingSimulationPage from "../pages/manufacturing-simulation.page"
 
 const root = document.getElementById("root")

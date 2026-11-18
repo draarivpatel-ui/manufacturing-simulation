@@ -1,5 +1,10 @@
 import { collectPrintedLabels } from "lib/job/label-collection"
 import {
+  getLaserJobLabel,
+  hasLaserWork,
+  runLaserJob,
+} from "lib/job/laser-steps"
+import {
   collectFinishedPlates,
   getFinishedPrinters,
   refillSpacerBasket,
@@ -26,6 +31,13 @@ export function getSideJobAt(
     return {
       label: `collect ${finishedCount === 1 ? "the finished plate" : `${finishedCount} finished plates`} and refill the spacers`,
       createTask: () => collectPlatesAndRefill(ctx),
+    }
+  }
+  if (params.tableId === "laser_bench") {
+    if (!hasLaserWork(ctx)) return null
+    return {
+      label: getLaserJobLabel(ctx),
+      createTask: () => runLaserJob({}, ctx),
     }
   }
   if (params.tableId === "label_bench") {
